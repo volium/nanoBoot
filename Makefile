@@ -73,7 +73,7 @@ FORMAT = ihex
 
 
 # Target file name (without extension).
-TARGET = usbBootloader
+TARGET = nanoBoot
 
 
 # Object files directory
@@ -302,6 +302,8 @@ AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep
 TARGET_READ_FILE = flashreadback
 AVRDUDE_READ_FLASH = -U flash:r:$(TARGET_READ_FILE).bin:r
 
+AVRDUDE_READ_FUSES = -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h
+
 # Uncomment the following if you want avrdude's erase cycle counter.
 # Note that this counter needs to be initialized first using -Yn,
 # see avrdude manual.
@@ -475,8 +477,13 @@ programhex: $(TARGET).hex
 programeeprom: $(TARGET).eep
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_EEPROM)
 
+# Read device memory
 readflash:
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_READ_FLASH)
+   
+# Read Fuses
+readfuses:
+	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_READ_FUSES)
 
 
 # Generate avr-gdb config/init file which does the following:

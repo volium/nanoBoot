@@ -1,0 +1,12 @@
+
+
+# https://forum.pjrc.com/threads/21825-Fuses-Teensyduino-sets-for-Teensy-2-0
+
+
+
+Teensy 2 fuses:
+
+#define FUSE_LSB        0b01011111 = 0x5F    // pg 350, pg29 (8-16 MHz xtal), pg 31
+#define FUSE_MSB        0b11011111 = 0xDF    // pg 350, bootloader, 512 bytes, using HWB
+#define FUSE_EXT        0b11110100 = 0xF4    // pg 349, pg 51 (2.4V), HWB enabled
+#define LOCK_BITS       0b11001100 = 0xCC    // protected
