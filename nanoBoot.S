@@ -20,6 +20,7 @@
 ; R1  =  temp (not === 0, since SPM uses R1:R0)
 ; R2 === 0 (use instead of traditional R1)
 ; R3 === 1 (common constant number used in the code)
+; R4  =  copy of MCUSR (MCU Status Register)
 ; Y  === USB_BASE
 
 ; Global Flags:
@@ -30,6 +31,7 @@
 
 #define rZERO              r2
 #define rONE               r3
+#define rMCUSR             r4
 
 ; #define rMagicBootKeyL     r26    ; currently not used - XL
 ; #define rMagicBootKeyH     r27    ; currently not used - XH
@@ -230,28 +232,27 @@ main:
       clr         rZERO                         ; Initialize rZERO (R2 register = zero)
       inc         rONE                          ; Initialize rZERO (R2 register = zero)
 
-      in          r16, _SFR_IO_ADDR(MCUSR)      ; Load MCU Status Register to r16
+      ; Create a copy of the MCUSR (MCU Status Register) as soon as possible
+      in          rMCUSR, _SFR_IO_ADDR(MCUSR)   ; Load MCU Status Register to rMCUSR
       out         _SFR_IO_ADDR(MCUSR), rZERO    ; Load MCU Status Register with rZERO (clear reset flags, particularly clear WDRF in MCUSR), necessary before disabling the Watchdog
 
-check_watchdog_reset_flag:
-      sbrs        r16, WDRF                     ; Skip the next instruction if WDRF is set (if Watchdog Reset Flag, skip next instruction)
-      rjmp        continue_bootloader           ; Move on with bootloader, jump to continue_bootloader if Watchdog Reset Flag is not set
-
-      ; If we get here, it means the Watchdog Timer caused the reset and we need to jump to the application, however,
-      ; we MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
-      
+      ; We MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
       ; Disable Watchdog Timer
       ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
                                                 ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
 
       mov         r17,  rZERO                   ; Load r17 with zero to disable the Watchdog Timer completely
 
-      rcall       set_watchdog_timer
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
 
-jump_to_application:
-      jmp         0			                     ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
+; check_reset_flags:
+      sbrc        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction)
+      rjmp        run_bootloader                ; Move on with bootloader, jump to run_bootloader if External Reset Flag is set
 
-continue_bootloader:
+run_application:                                ; We get here if the cause of the reset was anything but an Extenal Reset (push-button)
+      jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
+
+run_bootloader:
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
 
 
@@ -451,9 +452,9 @@ exit_bootloader:
       ldi         r17, _BV(WDE) | _BV(WDP2)     ; Load r17 with the value needed to set the desired Watchdog Configuration (WDCE = 0, not set!)
                                                 ; Write the WDE and Watchdog prescaler bits (WDP); System Reset Mode (WDE = 1) and ~250 ms timeout (WDP2 = 1)
 
-      rcall       set_watchdog_timer
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
 
-	; for (;;);
+   ; for (;;);
 final_loop:
    rjmp           final_loop
 
@@ -639,8 +640,8 @@ load_page_address:
 check_page_address:
       ldi         r26, 0xFF                     ; Load value 0xFF to r26
       cp          r26, r14                      ; Compare low byte of page address against 0xFF
-      cpc	      r26, r15                      ; Compare high byte of page address against 0xFF
-      brne	      erase_page                    ; if r15:r14 != 0xFFFF jump to erase_page
+      cpc         r26, r15                      ; Compare high byte of page address against 0xFF
+      brne        erase_page                    ; if r15:r14 != 0xFFFF jump to erase_page
 
 quit_bootloader:
       ; we received the START_APPLICATION command, change value of BootLoaderActive flag
@@ -710,7 +711,7 @@ finish_hid_request:
       ; Wait for TXINI (OK to transmit)
       rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
 
-		; Clear Transmitter Ready Flag
+      ; Clear Transmitter Ready Flag
       rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
 
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
@@ -862,7 +863,7 @@ UNHANDLED_SETUP_REQUEST:
 
       ; STALL transaction
 
-		; // Endpoint_StallTransaction();
+      ; // Endpoint_StallTransaction();
       ; UECONX |= (1 << STALLRQ);
       ldd         r16, Y+oUECONX                ; Load r16 with the value in the USB Endpoint Configuration Register (UECONX)
       ori         r16, _BV(STALLRQ)             ; Set the STALL Request Handshake Bit (STALLRQ) in r16
