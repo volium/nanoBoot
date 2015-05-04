@@ -10,6 +10,12 @@
 ;     Divide clock by 8 fuse (CKDIV8) is not set
 ; Bootloader starts on reset; Hardware Boot Enable fuse (HWBE) is configured (set to 0)
 
+; Fuse Settings:
+; Device signature = 0x1e9587
+; lfuse memory = 0xff
+; hfuse memory = 0xd6
+; efuse memory = 0xc7
+
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
 ; but, since only use EP0, this is not that important
