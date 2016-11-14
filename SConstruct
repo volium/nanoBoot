@@ -41,6 +41,11 @@ Clean([elf], Glob('*.lst'))
 
 # Generate binary files using OBJCOPY
 hex=env.Command('nanoBoot.hex',elf,'$OBJCOPY -O ihex -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
+
+# NOTE: The 'bin' file MUST be written at the correct BOOT_START_OFFSET; by default, tools will write
+# the flash starting at offset 0x0000 when given a binary file.
+# The 'ihex' format includes address information as part of the data stream, and thus work fine without
+# further intervention. It's easier/safer to use this format when writing the bootloader.
 bin=env.Command('nanoBoot.bin',elf,'$OBJCOPY -O binary -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
 
 # Add binaries to list of default targets
