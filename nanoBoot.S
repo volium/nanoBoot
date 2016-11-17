@@ -6,28 +6,29 @@
 
 ; HW assumptions:
 ; CLK is 16 MHz Crystal and fuses are setup correctly to support it:
-;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal (1111)
-;     Divide clock by 8 fuse (CKDIV8) is not set
-; Bootloader starts on reset; Hardware Boot Enable fuse (HWBE) is configured (set to 0)
+;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
+;     Divide clock by 8 fuse (CKDIV8) is NOT set, CKDIV8=0
+; Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
+; Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
 
 ; Fuse Settings:
-; Device signature = 0x1e9587
-; lfuse memory = 0xff
-; hfuse memory = 0xd6
-; efuse memory = 0xc7
+; Device signature = 0x1E9587
+; lfuse memory = 0xFF
+; hfuse memory = 0xD6
+; efuse memory = 0xC7
 
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
-; but, since only use EP0, this is not that important
+; but, since we only use EP0, this is not that important
 
 
 ; Register Assignments:
 ; R0  =  temp
-; R1  =  temp (not === 0, since SPM uses R1:R0)
-; R2 === 0 (use instead of traditional R1)
-; R3 === 1 (common constant number used in the code)
+; R1  =  temp (traditionally, R1 stores constant 0, but we use it as temp because SPM uses R1:R0)
+; R2  =  0 (common constant, use instead of traditional R1)
+; R3  =  1 (common constant, number is used constantly in the code)
 ; R4  =  copy of MCUSR (MCU Status Register)
-; Y  === USB_BASE
+; Y   =  USB_BASE
 
 ; Global Flags:
 ; T Flag (SREG) = BootLoaderActive
@@ -102,7 +103,6 @@
 ; For debugging purposes
 .equ     LED_PIN, 6
 
-
       .section    .vectors
 
       ; We still want the reset vector to jump to "main"
@@ -124,14 +124,14 @@ reset_vector:
 ;       .long       0       /* Reserved */
 ;       .long       0       /* Pin Change Interrupt Request 0 */
 
-; We have a total of 9 LWORDS (36 bytes) to hide part of the descriptors
+; We have a total of 9 LWORDS (36 bytes) to hide part of the USB descriptors
 ; We could just hide the Device Descriptor there, but we would waste 18 bytes
 ; since the config_descriptor would have to be moved after the USB-related ISRs
 ; (USB General Interrupt Request and the USB Endpoint Interrupt Request); instead,
 ; we hide the WHOLE Configuration Descriptor, including the config_descriptor,
 ; interface_descriptor, hid_descriptor and endpoint_descriptor which is:
 ; 9 + 9 + 9 + 7 = 34 bytes, and just leave the device_descriptor and
-; hid_report_descriptor defined after the USB-related ISRs
+; hid_report_descriptor (18 + 21 = 39 bytes) defined after the USB-related ISRs
 
 ; 9 bytes
 config_descriptor:
@@ -236,7 +236,7 @@ hid_report_descriptor:
 
 main:
       clr         rZERO                         ; Initialize rZERO (R2 register = zero)
-      inc         rONE                          ; Initialize rZERO (R2 register = zero)
+      inc         rONE                          ; Initialize rONE  (R3 register = one)
 
       ; Create a copy of the MCUSR (MCU Status Register) as soon as possible
       in          rMCUSR, _SFR_IO_ADDR(MCUSR)   ; Load MCU Status Register to rMCUSR
@@ -252,8 +252,7 @@ main:
       rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
 
 ; check_reset_flags:
-      sbrc        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction)
-      rjmp        run_bootloader                ; Move on with bootloader, jump to run_bootloader if External Reset Flag is set
+      sbrs        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction, go to run_bootloader)
 
 run_application:                                ; We get here if the cause of the reset was anything but an Extenal Reset (push-button)
       jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
@@ -280,7 +279,7 @@ run_bootloader:
 
 ; =================================================================
 ; = Setup Stack
-; = COMPLETELY UNNECESARY SINCE ATMEGA32U4 DOES THIS AUTOMATICALLY!
+; = UNNECESARY SINCE ATMEGA32U4 DOES THIS AUTOMATICALLY!
 ; =================================================================
 
 ; Set up the stack (TODO: is this necessary?), we won't be using the stack anyway
@@ -292,7 +291,7 @@ run_bootloader:
 
 ; =================================================================
 ; = Setup System Clock (16 MHz XTAL)
-; = COMPLETELY UNNECESARY SINCE FUSES TAKE CARE OF THIS!!
+; = UNNECESARY SINCE FUSES TAKE CARE OF THIS!!
 ; =================================================================
 
       ; lds         r16, CLKSEL0                  ; Load the value of Clock Selection Register 0 (CLKSEL0) to r16
@@ -435,7 +434,7 @@ wait_pll_lock:
 
 main_loop:
       brtc        exit_bootloader               ; check BootLoaderActive flag, branch if cleared
-      rjmp        main_loop
+      rjmp        main_loop                     ; while the T flag in SREG is set, keep looping
 
 
 exit_bootloader:
@@ -462,7 +461,8 @@ exit_bootloader:
 
    ; for (;;);
 final_loop:
-   rjmp           final_loop
+   rjmp           final_loop                    ; keep looping here until the Watchdog timer kicks in,
+                                                ; this will reset the MCU the new app should run
 
 
 ; =================================================================
@@ -669,7 +669,7 @@ clear_current_page_byte_address:
 check_endpoint_for_more_data:
 
       ; if (!(((uint16_t)UEBCHX << 8) | UEBCLX))
-      ; we just check for UEBCLX, we know we can't accept for than 130 bytes at a time (hid_report_descriptor)
+      ; we just check for UEBCLX, we know we can't accept more than 130 bytes at a time (hid_report_descriptor)
       ; ldd         r27, Y+oUEBCHX                ; load r27 with the value of USB Endpoint Byte Count High Register (UEBCHX)
       ldd         r26, Y+oUEBCLX                ; load r26 with the value of USB Endpoint Byte Count Low Register (UEBCLX)
       ; or          r27, r27
