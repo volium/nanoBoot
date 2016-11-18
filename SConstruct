@@ -48,8 +48,12 @@ hex=env.Command('nanoBoot.hex',elf,'$OBJCOPY -O ihex -R .eeprom -R .fuse -R .loc
 # further intervention. It's easier/safer to use this format when writing the bootloader.
 bin=env.Command('nanoBoot.bin',elf,'$OBJCOPY -O binary -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
 
-# Add binaries to list of default targets
-Default(hex, bin)
+elfsize = env.Command('elfsize', elf, "avr-size --mcu={} --format=avr $SOURCE".format(mcu))
+hexsize = env.Command('hexsize', hex, "avr-size --target=ihex $SOURCE")
+binsize = env.Command('binsize', bin, "avr-size --target=binary $SOURCE")
+
+# Add binaries and size information to list of default targets
+Default(hex, bin, elfsize)
 
 # Programmming commands (binary and hex versions)
 env.Command('programbin',bin,'avrdude -p atmega32u4 -P usb -c avrispv2 -U flash:w:$SOURCE')
