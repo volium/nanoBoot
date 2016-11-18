@@ -135,7 +135,7 @@ reset_vector:
       cli                     ; Possibly unnecessary, maybe do something else?
       rjmp        main        ; Jump to main
 
-; We are "hiding" the USB deacriptors in the Interrupt Vector Table
+; We are "hiding" the USB descriptors in the Interrupt Vector Table
 
 ;       .long       0       /* External Interrupt Request 0 */
 ;       .long       0       /* External Interrupt Request 1 */
@@ -389,7 +389,7 @@ run_bootloader:
 
       ; Set PLL Output Frequency to 48MHz
       ; PLLFRQ = (1 << PDIV2);
-      ldi         r17, _BV(PDIV2)               ; Load r17 with the value needed to set the PLL Lock Frequency to 48MHz (PDIV2 set to 1)
+      ldi         r17, _BV(PDIV2)               ; Load r17 with the value needed to set the PLL Lock Frequency to 48MHz (only PDIV2 bit set to 1)
                                                 ; The PLL Input Multiplexer (PMUX) bit is set to 0 because the PLL input is connected to the PLL Prescaler, which has the Primary System Clock as source
                                                 ; The PLL Postcaler for USB Peripheral (PLLUSB) is set to 0 because we don't need further division (PDIV2 set to 1 -> PLL Output = 48MHz)
       out         _SFR_IO_ADDR(PLLFRQ), r17     ; Store r17 to the PLL Frequency Control Register (PLLFRQ)
@@ -600,7 +600,7 @@ HOST_TO_DEVICE:
 
       ; For OUT transactions, here we ONLY handle standard requests targeted for the device
       cpi         reg_bmRequestType, 0x00       ; Compare r18 (bmRequestType) with value 0x00 (OUT Type Resquest, USB Standard Request, Recipient is the device)
-      breq        HANDLE_USB_STANDARD_DEVICE   ; If bmRequestType is not 0x00, we know it's not a SET_ADDRESS or SET_CONFIGURATION request, so jump to UNHANDLED_HOST_TO_DEVICE
+      breq        HANDLE_USB_STANDARD_DEVICE    ; If bmRequestType is not 0x00, we know it's not a SET_ADDRESS or SET_CONFIGURATION request, so jump to UNHANDLED_HOST_TO_DEVICE
 
       andi        reg_bmRequestType, (0x60 | 0x1F)          ; Mask reg_bmRequestType with the bits that define request type and recipient (CONTROL_REQTYPE_TYPE | CONTROL_REQTYPE_RECIPIENT)
       cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
