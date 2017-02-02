@@ -371,6 +371,14 @@ REMOVEDIR = rm -rf
 COPY = cp
 WINSHELL = cmd
 
+# Define programs and commands for OS
+ifeq ($(OS),Windows_NT)
+# building on Windows
+DEVNUL = NUL
+else
+# building on Unix-likes
+DEVNUL = /dev/null
+endif
 
 # Define Messages
 # English
@@ -636,11 +644,11 @@ clean_list :
 
 
 # Create object files directory
-$(shell mkdir $(OBJDIR) 2>/NUL)
+$(shell mkdir $(OBJDIR) 2>$(DEVNUL))
 
 
 # Include the dependency files.
--include $(shell mkdir .dep 2>NUL) $(wildcard .dep/*)
+-include $(shell mkdir .dep 2>$(DEVNUL)) $(wildcard .dep/*)
 
 
 # Listing of phony targets.
