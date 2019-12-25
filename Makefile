@@ -506,6 +506,7 @@ endif
 	@echo break main >> $(GDBINIT_FILE)
 
 debug: gdb-config $(TARGET).elf
+ifeq ($(OS),Windows_NT)
 ifeq ($(DEBUG_BACKEND), avarice)
 	@echo Starting AVaRICE - Press enter when "waiting to connect" message displays.
 	@$(WINSHELL) /c start avarice --jtag $(JTAG_DEV) --erase --program --file \
@@ -518,6 +519,19 @@ else
 endif
 	@$(WINSHELL) /c start avr-$(DEBUG_UI) --command=$(GDBINIT_FILE)
 
+else
+ifeq ($(DEBUG_BACKEND), avarice)
+	@echo Starting AVaRICE - Press enter when "waiting to connect" message displays.
+	@avarice --jtag $(JTAG_DEV) --erase --program --file \
+	$(TARGET).elf $(DEBUG_HOST):$(DEBUG_PORT)
+	@bash -c 'read -n1 -p "Hit enter after \"waiting to connect\" message: " key'
+
+else
+	@simulavr --gdbserver --device $(MCU) --clock-freq \
+	$(DEBUG_MFREQ) --port $(DEBUG_PORT)
+endif
+	@avr-$(DEBUG_UI) --command=$(GDBINIT_FILE)
+endif
 
 
 
