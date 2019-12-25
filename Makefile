@@ -370,7 +370,11 @@ REMOVE = rm -f
 REMOVEDIR = rm -rf
 COPY = cp
 WINSHELL = cmd
-
+ifeq ($(OS),Windows_NT)
+DEVNULL = NUL
+else
+DEVNULL = /dev/null
+endif
 
 # Define Messages
 # English
@@ -452,11 +456,11 @@ ELFSIZE = $(SIZE) --mcu=$(MCU) --format=avr $(TARGET).elf
 
 sizebefore:
 	@if test -f $(TARGET).elf; then echo; echo $(MSG_SIZE_BEFORE); $(ELFSIZE); \
-	2>/dev/null; echo; fi
+	2>$(DEVNULL); echo; fi
 
 sizeafter:
 	@if test -f $(TARGET).elf; then echo; echo $(MSG_SIZE_AFTER); $(ELFSIZE); \
-	2>/dev/null; echo; fi
+	2>$(DEVNULL); echo; fi
 
 # Display compiler version information.
 gccversion :
@@ -636,11 +640,11 @@ clean_list :
 
 
 # Create object files directory
-$(shell mkdir $(OBJDIR) 2>/NUL)
+$(shell mkdir $(OBJDIR) 2>$(DEVNULL))
 
 
 # Include the dependency files.
--include $(shell mkdir .dep 2>NUL) $(wildcard .dep/*)
+-include $(shell mkdir .dep 2>$(DEVNULL)) $(wildcard .dep/*)
 
 
 # Listing of phony targets.
