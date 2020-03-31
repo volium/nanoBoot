@@ -456,8 +456,9 @@ wait_pll_lock:
 ; =================================================================
 
 main_loop:
-      brtc        exit_bootloader               ; check BootLoaderActive flag, branch if cleared
-      rjmp        main_loop                     ; while the T flag in SREG is set, keep looping
+;      brtc        exit_bootloader               ; check BootLoaderActive flag, branch if cleared
+;      rjmp        main_loop                     ; while the T flag in SREG is set, keep looping
+      brts        main_loop                     ; check BootLoaderActive flag, loop if set
 
 
 exit_bootloader:
@@ -606,7 +607,8 @@ HOST_TO_DEVICE:
       cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
       breq        HANDLE_USB_CLAS_INTERFACE                 ; jump to END_USB_Device_ControlRequest
 
-      rjmp        UNHANDLED_HOST_TO_DEVICE
+      ;rjmp        UNHANDLED_HOST_TO_DEVICE
+      rjmp        UNHANDLED_SETUP_REQUEST
 
 HANDLE_USB_STANDARD_DEVICE:
 
@@ -616,14 +618,15 @@ HANDLE_USB_STANDARD_DEVICE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
       breq        SET_CONFIGURATION             ; jump to SET_CONFIGURATION
 
-      rjmp        UNHANDLED_HOST_TO_DEVICE
+;      rjmp        UNHANDLED_HOST_TO_DEVICE
+      rjmp        UNHANDLED_SETUP_REQUEST
 
 HANDLE_USB_CLAS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
       breq        SET_HID_REPORT                ; jump to END_USB_Device_ControlRequest
 
-UNHANDLED_HOST_TO_DEVICE:
-      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
+;UNHANDLED_HOST_TO_DEVICE:
+;      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 
 SET_ADDRESS:
@@ -860,8 +863,10 @@ send_packet_done:
 wait_finish_transfer:
       ldd         r17, Y+oUEINTX                ; Load r17 with the most current value in the USB Endpoint Interrupt Register (UEINTX);
       sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's already an OUT packet from the host), go to acknowledge_rxouti
-      sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is not set; no need to abort, we haven't received another SETUP packet, we can keep looping
-      rjmp        acknowledge_rxouti            ; Jump if either RXOUTI or RXSTPI are set
+;      sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is not set; no need to abort, we haven't received another SETUP packet, we can keep looping
+;      rjmp        acknowledge_rxouti            ; Jump if either RXOUTI or RXSTPI are set
+;      rjmp        wait_finish_transfer          ; Loop back to finish_transfer until either Received OUT Data Interrupt Flag (RXOUTI) or Received SETUP Interrupt Flag (RXSTPI) is set
+      sbrs        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; no need to abort, we haven't received another SETUP packet, we can keep looping
       rjmp        wait_finish_transfer          ; Loop back to finish_transfer until either Received OUT Data Interrupt Flag (RXOUTI) or Received SETUP Interrupt Flag (RXSTPI) is set
 
 acknowledge_rxouti:
