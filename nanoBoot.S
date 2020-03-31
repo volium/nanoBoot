@@ -30,15 +30,21 @@
 ; HW assumptions:
 ; CLK is 16 MHz Crystal and fuses are setup correctly to support it:
 ;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
-;     Divide clock by 8 fuse (CKDIV8) is NOT set, CKDIV8=0
+;     Divide clock by 8 fuse (CKDIV8) can be any value.
 ; Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
 ; Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
 
 ; Fuse Settings:
 ; Device signature = 0x1E9587
-; lfuse memory = 0xFF
-; hfuse memory = 0xD6
-; efuse memory = 0xC7
+; lfuse memory = 0xFF or 0x7F (CKDIV8=1 or 0, 16CK+65ms)
+; hfuse memory = 0xD6 (EESAVE=0, BOOTRST=0)
+; efuse memory = 0xC7 (=0xF7, No BOD)
+
+; Alternatively BOD can be used to ease CKSEL-SUT setting requirements to
+; allow teensy like FUSE setting
+; lfuse memory = 0x5F (CKDIV8=0, 16CK + 0ms)
+; hfuse memory = 0xDF (EESAVE=1, BOOTRST=1)
+; efuse memory = 0xF4 (BOD=2.4V)
 
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
@@ -324,9 +330,9 @@ run_bootloader:
       ; sbrs        r17, EXTON                    ; Skip the next instruction if the External Clock On bit (EXTON) is set (External Clk is running); basically, move on
       ; rjmp        1b                            ; Jump to 1Backwards if the External Clock On bit (EXTON) is not set (External Clk not running)
 
-      ; ldi         r17, _BV(CLKPCE)              ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
-      ; sts         CLKPR, r17                    ; Store r17 to the Clock Prescaler Register (CLKPR)
-      ; sts         CLKPR, rZERO                  ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
+      ldi         r17, _BV(CLKPCE)              ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
+      sts         CLKPR, r17                    ; Store r17 to the Clock Prescaler Register (CLKPR)
+      sts         CLKPR, rZERO                  ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
 
 ; =================================================================
 ; = Basic device setup is NOW COMPLETE!!
