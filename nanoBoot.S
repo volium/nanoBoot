@@ -29,16 +29,24 @@
 
 ; HW assumptions:
 ; CLK is 16 MHz Crystal and fuses are setup correctly to support it:
+;
 ;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
-;     Divide clock by 8 fuse (CKDIV8) is NOT set, CKDIV8=0
+;     Divide clock by 8 fuse (CKDIV8) can be any, CKDIV8= 0 or 1
+;
 ; Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
 ; Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
 
-; Fuse Settings:
+; Fuse Settings: (Pro Micro like)
 ; Device signature = 0x1E9587
 ; lfuse memory = 0xFF
 ; hfuse memory = 0xD6
 ; efuse memory = 0xC7
+
+; Fuse Settings: (Teensy 2.0 like)
+; Device signature = 0x1E9587
+; lfuse memory = 0x5F
+; hfuse memory = 0xDF
+; efuse memory = 0xC4
 
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
