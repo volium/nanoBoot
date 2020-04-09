@@ -516,7 +516,7 @@ final_loop:
       .global     USB_General_ISR
 USB_General_ISR:
 
-service_EORSTI:
+; service_EORSTI:                              ; unused label
 
 ; =================================================================
 ; = Configure Endpoint0
@@ -832,7 +832,8 @@ send_descriptor:
       ; Abort if RXSTPI is set
       ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-      rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+      reti
 
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's an OUT packet from the host)
@@ -871,7 +872,8 @@ acknowledge_rxouti:
       ; Abort if RXSTPI is set
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-      rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+      reti
 
       ; Acknowledge the OUT packet
       rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
@@ -882,8 +884,8 @@ UNHANDLED_SETUP_REQUEST:
       ; (UEINTX & (1 << RXSTPI))
       ldd         r16, Y+oUEINTX                 ; Load r16 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrs        r16, RXSTPI                    ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; received SETUP packet?
-      rjmp        EP_ISR_END                     ; Jump if RXSTPI is not set, SETUP packet already handled
-
+;     rjmp        EP_ISR_END                     ; Jump if RXSTPI is not set, SETUP packet already handled
+      reti
       ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
 
       ; Acknowledge the SETUP packet
