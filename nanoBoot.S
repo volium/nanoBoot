@@ -133,9 +133,11 @@
 
 reset_vector:
       cli                     ; Possibly unnecessary, maybe do something else?
+      clr         rZERO       ; Initialize rZERO (R2 register = zero)
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
+; initial 2 bytes of 9 LWORDS (36 bytes) are already used.
 
 ;       .long       0       /* External Interrupt Request 0 */
 ;       .long       0       /* External Interrupt Request 1 */
@@ -147,7 +149,7 @@ reset_vector:
 ;       .long       0       /* Reserved */
 ;       .long       0       /* Pin Change Interrupt Request 0 */
 
-; We have a total of 9 LWORDS (36 bytes) to hide part of the USB descriptors
+; We have a total of 34 bytes to hide part of the USB descriptors
 ; We could just hide the Device Descriptor there, but we would waste 18 bytes
 ; since the config_descriptor would have to be moved after the USB-related ISRs
 ; (USB General Interrupt Request and the USB Endpoint Interrupt Request); instead,
@@ -258,7 +260,6 @@ hid_report_descriptor:
 ; =================================================================
 
 main:
-      clr         rZERO                         ; Initialize rZERO (R2 register = zero)
       inc         rONE                          ; Initialize rONE  (R3 register = one)
 
       ; Create a copy of the MCUSR (MCU Status Register) as soon as possible
