@@ -456,9 +456,7 @@ wait_pll_lock:
 ; =================================================================
 
 main_loop:
-      brtc        exit_bootloader               ; check BootLoaderActive flag, branch if cleared
-      rjmp        main_loop                     ; while the T flag in SREG is set, keep looping
-
+      brts        main_loop     ; Loop while the T (=BootLoaderActive) flag in SREG is set
 
 exit_bootloader:
       ; Detach device from USB Bus
