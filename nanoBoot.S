@@ -207,6 +207,25 @@ endpoint_descriptor:
       .org        reset_vector + 0x28
       .global     USB_General_Vector
 USB_General_Vector:
+      ; We have 4 bytes here
+      ;
+      ; WARNING: REGISTERS/CONTEXT NOT SAVED!
+
+      ; ASSUMPTION!
+      ; We know we ONLY enabled End Of Reset Interrupt (EORSTE) during initialization, so we are not checking for that here;
+      ; basically, if we enter this interrupt it's because we need to service the End Of Reset Interrupt (EORSTI)
+
+      ; This following line will be necessary if the assumption above ever changes, since we would need to filter invidual interrupt sources
+      ; ldd         r17, Y+oUDINT                 ; Load r17 with the value in the USB Device Interrupt Flag Register (UDINT), create a copy of the interrupt flags
+
+      ; Given the assumption above, we can simply clear the whole USB Device Interrupt Flag Register (UDINT) to acknowledge the interrupt
+      std         Y+oUDINT, rZERO               ; Load the USB Device Interrupt Flag Register (UDINT) with zero (clear all USB-related interrupts)
+
+      ; If we ever need to distinguish among multiple interrupt sources, we can filter them using code like the following
+      ; sbrs        r17, EORSTI                   ; Skip the next instruction if the End Of Reset Interrupt Flag (EORSTI) is set;
+                                                  ; Don't jump if “End Of Reset” has been detected by the USB controller; thus service the End Of Reset interrupt
+      ; rjmp        not_EORSTI
+
       rjmp        USB_General_ISR     /* USB General Interrupt Request */
 
       .org        reset_vector + 0x2c
@@ -496,23 +515,6 @@ final_loop:
 
       .global     USB_General_ISR
 USB_General_ISR:
-
-      ; WARNING: REGISTERS/CONTEXT NOT SAVED!
-
-      ; ASSUMPTION!
-      ; We know we ONLY enabled End Of Reset Interrupt (EORSTE) during initialization, so we are not checking for that here;
-      ; basically, if we enter this interrupt it's because we need to service the End Of Reset Interrupt (EORSTI)
-
-      ; This following line will be necessary if the assumption above ever changes, since we would need to filter invidual interrupt sources
-      ; ldd         r17, Y+oUDINT                 ; Load r17 with the value in the USB Device Interrupt Flag Register (UDINT), create a copy of the interrupt flags
-
-      ; Given the assumption above, we can simply clear the whole USB Device Interrupt Flag Register (UDINT) to acknowledge the interrupt
-      std         Y+oUDINT, rZERO               ; Load the USB Device Interrupt Flag Register (UDINT) with zero (clear all USB-related interrupts)
-
-      ; If we ever need to distinguish among multiple interrupt sources, we can filter them using code like the following
-      ; sbrs        r17, EORSTI                   ; Skip the next instruction if the End Of Reset Interrupt Flag (EORSTI) is set;
-                                                  ; Don't jump if “End Of Reset” has been detected by the USB controller; thus service the End Of Reset interrupt
-      ; rjmp        not_EORSTI
 
 service_EORSTI:
 
