@@ -287,6 +287,11 @@ hid_report_descriptor:
 ; =================================================================
 
 main:
+; =================================================================
+; = Initialize constants
+; =================================================================
+      ; Set R3=rONE
+      clr         rONE                          ; Initialize rONE as 0 (application may have set this before RESET)
       inc         rONE                          ; Initialize rONE  (R3 register = one)
 
       ; Create a copy of the MCUSR (MCU Status Register) as soon as possible
