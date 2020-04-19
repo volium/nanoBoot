@@ -1,11 +1,15 @@
 import os
 
+build_dir = 'build/'
+out_dir = build_dir + 'out/'
+
 #Initialize the environment
 env = DefaultEnvironment(ENV = os.environ, tools = ['as', 'gcc', 'gnulink'])
 
 env['CC'] ='avr-gcc'
 env['AS'] ='avr-gcc'
 env['OBJCOPY'] = 'avr-objcopy'
+env['OBJPREFIX'] = build_dir # This is a workaoround to force .o files to be placed in the build dir
 env['PROGSUFFIX'] ='.elf'
 
 mcu = 'atmega32u4'
@@ -31,7 +35,7 @@ env['LINKFLAGS'] =[
     '-nostartfiles'
 ]
 
-target = 'nanoBoot'
+target = build_dir + 'nanoBoot'
 sources = [Glob('*.S')]
 
 elf=env.Program(target=target,source=sources)
@@ -40,13 +44,13 @@ elf=env.Program(target=target,source=sources)
 Clean([elf], Glob('*.lst'))
 
 # Generate binary files using OBJCOPY
-hex=env.Command('nanoBoot.hex',elf,'$OBJCOPY -O ihex -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
+hex=env.Command(out_dir + 'nanoBoot.hex',elf,'$OBJCOPY -O ihex -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
 
-# NOTE: The 'bin' file MUST be written at the correct BOOT_START_OFFSET; by default, tools will write
-# the flash starting at offset 0x0000 when given a binary file.
-# The 'ihex' format includes address information as part of the data stream, and thus work fine without
-# further intervention. It's easier/safer to use this format when writing the bootloader.
-bin=env.Command('nanoBoot.bin',elf,'$OBJCOPY -O binary -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
+# NOTE: The 'bin' file MUST be written at the correct BOOT_START_OFFSET; by default, tools will
+# write the flash starting at offset 0x0000 when given a binary file.
+# The 'ihex' format includes address information as part of the data stream, and thus work fine
+# without further intervention. It's easier/safer to use ihex format when writing the bootloader.
+bin=env.Command(out_dir + 'nanoBoot.bin',elf,'$OBJCOPY -O binary -R .eeprom -R .fuse -R .lock $SOURCE $TARGET')
 
 elfsize = env.Command('elfsize', elf, "avr-size --mcu={} --format=avr $SOURCE".format(mcu))
 hexsize = env.Command('hexsize', hex, "avr-size --target=ihex $SOURCE")
