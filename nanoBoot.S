@@ -31,7 +31,7 @@
 ; CLK is 16 MHz Crystal and fuses are setup correctly to support it:
 ;
 ;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
-;     Divide clock by 8 fuse (CKDIV8) can be any, CKDIV8= 0 or 1
+;     Divide clock by 8 fuse (CKDIV8) can be set to either 0 or 1
 ;
 ; Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
 ; Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
@@ -127,7 +127,7 @@
 #include <avr/io.h>
 
 #ifndef BOOT_ADDRESS
-# error "BOOT_ADDRESS not defined!!
+# error "BOOT_ADDRESS not defined!!"
 # define BOOT_ADDRESS 0
 #endif
 
@@ -145,7 +145,8 @@ reset_vector:
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
-; initial 2 bytes of 9 LWORDS (36 bytes) are already used.
+; NOTE: The 3 instructions above take 6 bytes total, eating into half (2 bytes)
+; of the "External Interrupt Request" vector.
 
 ;       .long       0       /* External Interrupt Request 0 */
 ;       .long       0       /* External Interrupt Request 1 */
@@ -157,14 +158,15 @@ reset_vector:
 ;       .long       0       /* Reserved */
 ;       .long       0       /* Pin Change Interrupt Request 0 */
 
-; We have a total of 34 bytes to hide part of the USB descriptors
-; We could just hide the Device Descriptor there, but we would waste 18 bytes
-; since the config_descriptor would have to be moved after the USB-related ISRs
-; (USB General Interrupt Request and the USB Endpoint Interrupt Request); instead,
-; we hide the WHOLE Configuration Descriptor, including the config_descriptor,
-; interface_descriptor, hid_descriptor and endpoint_descriptor which is:
+; We have a total 8.5 LWORDS (8.5*4=34 bytes; see NOTE above) to hide part of
+; the USB descriptors. We could just hide the Device Descriptor there, but we
+; would waste 18 bytes since the config_descriptor would have to be moved after
+; the USB-related ISRs (USB General Interrupt Request and the USB Endpoint
+; Interrupt Request); instead, we hide the WHOLE Configuration Descriptor,
+; including the config_descriptor, interface_descriptor, hid_descriptor and
+; endpoint_descriptor which is:
 ; 9 + 9 + 9 + 7 = 34 bytes, and just leave the device_descriptor and
-; hid_report_descriptor (18 + 21 = 39 bytes) defined after the USB-related ISRs
+; hid_report_descriptor (18 + 21 = 39 bytes) defined after the USB-related ISRs.
 
 ; 9 bytes
 config_descriptor:
@@ -215,15 +217,21 @@ endpoint_descriptor:
       .org        reset_vector + 0x28
       .global     USB_General_Vector
 USB_General_Vector:
-      ; We have 4 bytes here
-      ;
-      ; WARNING: REGISTERS/CONTEXT NOT SAVED!
+
+      ; The following is an optimization by "osamuaoki" that saves 2 bytes.
+      ; It uses the full space (4 bytes) of the USB_General_Vector to store an
+      ; instruction (std) that used to be part of the USB_General_ISR, which
+      ; gets called from here anyway; so it makes sense to pack it here. This
+      ; can only be done because the following assumption is valid:
 
       ; ASSUMPTION!
-      ; We know we ONLY enabled End Of Reset Interrupt (EORSTE) during initialization, so we are not checking for that here;
-      ; basically, if we enter this interrupt it's because we need to service the End Of Reset Interrupt (EORSTI)
+      ; We know we ONLY enable End Of Reset Interrupt (EORSTE) during USB
+      ; Initialization, so we don't need to check that; basically, if we enter
+      ; this interrupt (USB General) it's because we need to service the End Of
+      ; Reset Interrupt (EORSTI).
 
-      ; This following line will be necessary if the assumption above ever changes, since we would need to filter invidual interrupt sources
+      ; This following line will be necessary if the assumption above ever
+      ; changes, since we would need to filter invidual interrupt sources
       ; ldd         r17, Y+oUDINT                 ; Load r17 with the value in the USB Device Interrupt Flag Register (UDINT), create a copy of the interrupt flags
 
       ; Given the assumption above, we can simply clear the whole USB Device Interrupt Flag Register (UDINT) to acknowledge the interrupt
@@ -233,6 +241,10 @@ USB_General_Vector:
       ; sbrs        r17, EORSTI                   ; Skip the next instruction if the End Of Reset Interrupt Flag (EORSTI) is set;
                                                   ; Don't jump if “End Of Reset” has been detected by the USB controller; thus service the End Of Reset interrupt
       ; rjmp        not_EORSTI
+
+      ; IMPORTANT NOTE: If the code above ever changes (grows), it will need to
+      ; be moved back to the USB_General_ISR section, since interrupt vectors
+      ; only allocate 4 bytes, basically enough space to jump to actual ISR.
 
       rjmp        USB_General_ISR     /* USB General Interrupt Request */
 
@@ -357,9 +369,16 @@ run_bootloader:
       ; sbrs        r17, EXTON                    ; Skip the next instruction if the External Clock On bit (EXTON) is set (External Clk is running); basically, move on
       ; rjmp        1b                            ; Jump to 1Backwards if the External Clock On bit (EXTON) is not set (External Clk not running)
 
-      ldi         r17, _BV(CLKPCE)              ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
-      sts         CLKPR, r17                    ; Store r17 to the Clock Prescaler Register (CLKPR)
-      sts         CLKPR, rZERO                  ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
+      ; The following is a functional improvement by "osamuaoki", after he was
+      ; able to free up enough space to fit this in. Basically, this allows the
+      ; "Divide clock by 8" fuse (CKDIV8) to be set to any value (0 or 1), since
+      ; we are setting the clock prescaler to zero here, effectively setting the
+      ; System Clock to 16 MHz, which is one of the HW assumptions made for the
+      ; code to work as expected.
+
+      ldi         r17, _BV(CLKPCE)                ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
+      sts         CLKPR, r17                      ; Store r17 to the Clock Prescaler Register (CLKPR)
+      sts         CLKPR, rZERO                    ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
 
 ; =================================================================
 ; = Basic device setup is NOW COMPLETE!!
@@ -489,7 +508,7 @@ wait_pll_lock:
 ; =================================================================
 
 main_loop:
-      brts        main_loop     ; Loop while the T (=BootLoaderActive) flag in SREG is set
+      brts        main_loop                     ; Loop while the T (BootLoaderActive) flag in SREG is set
 
 exit_bootloader:
       ; Detach device from USB Bus
@@ -528,6 +547,8 @@ final_loop:
 
       .global     USB_General_ISR
 USB_General_ISR:
+
+; WARNING: REGISTERS/CONTEXT NOT SAVED!
 
 ; service_EORSTI:                              ; unused label
 
@@ -614,11 +635,11 @@ HOST_TO_DEVICE:
 
       ; For OUT transactions, here we ONLY handle standard requests targeted for the device
       cpi         reg_bmRequestType, 0x00       ; Compare r18 (bmRequestType) with value 0x00 (OUT Type Resquest, USB Standard Request, Recipient is the device)
-      breq        HANDLE_USB_STANDARD_DEVICE    ; If bmRequestType is not 0x00, we know it's not a SET_ADDRESS or SET_CONFIGURATION request, so jump to UNHANDLED_HOST_TO_DEVICE
+      breq        HANDLE_USB_STANDARD_DEVICE    ; If bmRequestType is 0x00, we know it's either a SET_ADDRESS or SET_CONFIGURATION request, so jump to HANDLE_USB_STANDARD_DEVICE
 
       andi        reg_bmRequestType, (0x60 | 0x1F)          ; Mask reg_bmRequestType with the bits that define request type and recipient (CONTROL_REQTYPE_TYPE | CONTROL_REQTYPE_RECIPIENT)
       cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
-      breq        HANDLE_USB_CLAS_INTERFACE                 ; jump to END_USB_Device_ControlRequest
+      breq        HANDLE_USB_CLAS_INTERFACE                 ; jump to HANDLE_USB_CLAS_INTERFACE
 
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
@@ -634,7 +655,7 @@ HANDLE_USB_STANDARD_DEVICE:
 
 HANDLE_USB_CLAS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
-      breq        SET_HID_REPORT                ; jump to END_USB_Device_ControlRequest
+      breq        SET_HID_REPORT                ; jump to SET_HID_REPORT
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 
@@ -787,6 +808,8 @@ GET_DESCRIPTOR:
       ldi         ZH, 0x7E    ; Load ZH with the most significant 8 bits of the descriptors address (0x7E)
 
       ; High byte of wValue for GET_DESCRIPTOR transactions specifies Descriptor Type
+      ; NOTE! We are skipping the comparison for 0x01 (Device Descriptor), since that can't really
+      ; be excluded, we simply assume that's the default to save space here. See @SAVE_SPACE below.
       cpi         reg_wValueH, 0x02             ; Compare high byte of wValue with value 2;
       breq        send_config_descriptor        ; If high byte of wValue is 0x02 (Configuration Descriptor), jump to handle that
       cpi         reg_wValueH, 0x21             ; Compare high byte of wValue with value 0x21;
@@ -796,35 +819,37 @@ GET_DESCRIPTOR:
 
       ; If needed, include other descriptors here
 
-      ; @SAVE_SPACE: I was able to comment this out and things still work, but it's probably bad (saves two bytes)
-      ;  ; The following 2 lines are also dropped since we are skipping "rjmp UNHANDLED_SETUP_REQUEST"
+      ; @SAVE_SPACE: I was able to comment this out and things still work, but it's probably bad (saves 6 bytes)
+      ; The following 2 lines are also dropped since we are skipping "rjmp UNHANDLED_SETUP_REQUEST" (osamuaoki)
       ; cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
       ; breq        send_device_descriptor        ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that
+      ; NOTE: Originally, only this rjmp was skipped and things were still working, that's what
+      ; osamuaoki was able to use to optimize the check for (Device Descriptor), and simply fall through.
       ; rjmp        UNHANDLED_SETUP_REQUEST       ; If the requested descriptor is not supported jump to UNHANDLED_SETUP_REQUEST
 
 send_device_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descritor,
+                                                ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(device_descriptor)    ; Load ZL with the least significant 8 bits of device_descriptor
       ldi         r16, 18                       ; Load r16 with length of device_descriptor (18 bytes)
       rjmp        process_descriptor            ; jump to process_descriptor
 
 send_config_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descritor,
+                                                ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(config_descriptor)    ; Load ZL with the least significant 8 bits of config_descriptor
       ldi         r16, 34                       ; Load r16 with length of config_descriptor (34 bytes)
       rjmp        process_descriptor            ; jump to process_descriptor
 
 send_hid_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descritor,
+                                                ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(hid_descriptor)       ; Load ZL with the least significant 8 bits of hid_descriptor
       ldi         r16, 9                        ; Load r16 with length of hid_descriptor (9 bytes)
       rjmp        process_descriptor            ; jump to process_descriptor
 
 send_hid_report_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descritor,
+                                                ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(hid_report_descriptor); Load ZL with the least significant 8 bits of hid_report_descriptor
       ldi         r16, 21                       ; Load r16 with length of hid_report_descriptor (21 bytes)
@@ -846,8 +871,7 @@ send_descriptor:
       ; Abort if RXSTPI is set
       ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
-      reti
+      reti                                      ; Return if RXSTPI is set, we need to prioritize SETUP packets
 
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's an OUT packet from the host)
@@ -886,8 +910,7 @@ acknowledge_rxouti:
       ; Abort if RXSTPI is set
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
-      reti
+      reti                                      ; Return if RXSTPI is set, we need to prioritize SETUP packets
 
       ; Acknowledge the OUT packet
       rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
@@ -898,8 +921,8 @@ UNHANDLED_SETUP_REQUEST:
       ; (UEINTX & (1 << RXSTPI))
       ldd         r16, Y+oUEINTX                 ; Load r16 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrs        r16, RXSTPI                    ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; received SETUP packet?
-;     rjmp        EP_ISR_END                     ; Jump if RXSTPI is not set, SETUP packet already handled
-      reti
+      reti                                       ; Return if RXSTPI is not set, SETUP packet already handled
+
       ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
 
       ; Acknowledge the SETUP packet
