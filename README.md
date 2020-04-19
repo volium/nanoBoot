@@ -8,7 +8,7 @@ The name *nanoBoot* comes from the fact that the compiled source fits in the sma
 
 It's very likely that a few sections can be rewritten to make it even smaller, and the ultimate goal is to support EEPROM programming as well, although that would require changes to the host code.
 
-The current version (commit #[52826ed](https://github.com/volium/nanoBoot/commit/52826edb7256d327e3dbdcc6016cfb71b43201fe)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115), and is exactly 510 bytes long.
+The current version (commit #[d0ea26b](https://github.com/volium/nanoBoot/commit/d0ea26bb01e764340dc8ad7b473ad98cefdb52eb)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115), and is exactly 506 bytes long.
 
 ## HW assumptions:
 
