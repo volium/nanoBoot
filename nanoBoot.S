@@ -976,8 +976,20 @@ process_Host2Device:
       ; Clear Transmitter Ready Flag
       rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
 
+      ; SIZE OPTIMIZATION: Fall through to wait_TXINI instead of rcall'ing it
       ; Wait for TXINI (OK to transmit)
-      rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
+      ; rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
+      ; ret                                       ; Return from call
+
+wait_TXINI:
+
+      ; NOTE: This function uses r17, we can use this fact to code other stuff
+      ; that happens before and after this functions is called
+
+      ; Wait for TXINI (OK to transmit)
+      ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX)
+      sbrs        r17, TXINI                    ; Check the value of bit TXINI in r17, skip the next instruction if set
+      rjmp        wait_TXINI                    ; Bit TXINI is not set, keep waiting
 
       ret                                       ; Return from call
 
@@ -1011,19 +1023,6 @@ clear_RXOUTI:
       ; Acknowledge the OUT packet
       ldi        r17, ~(_BV(RXOUTI))            ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
       std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      ret                                       ; Return from call
-
-
-wait_TXINI:
-
-      ; NOTE: This function uses r17, we can use this fact to code other stuff
-      ; that happens before and after this functions is called
-
-      ; Wait for TXINI (OK to transmit)
-      ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX)
-      sbrs        r17, TXINI                    ; Check the value of bit TXINI in r17, skip the next instruction if set
-      rjmp        wait_TXINI                    ; Bit TXINI is not set, keep waiting
 
       ret                                       ; Return from call
 
