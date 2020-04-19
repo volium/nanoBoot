@@ -29,16 +29,24 @@
 
 ; HW assumptions:
 ; CLK is 16 MHz Crystal and fuses are setup correctly to support it:
+;
 ;     Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
-;     Divide clock by 8 fuse (CKDIV8) is NOT set, CKDIV8=0
+;     Divide clock by 8 fuse (CKDIV8) can be any, CKDIV8= 0 or 1
+;
 ; Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
 ; Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
 
-; Fuse Settings:
+; Fuse Settings: (Pro Micro like)
 ; Device signature = 0x1E9587
 ; lfuse memory = 0xFF
 ; hfuse memory = 0xD6
 ; efuse memory = 0xC7
+
+; Fuse Settings: (Teensy 2.0 like)
+; Device signature = 0x1E9587
+; lfuse memory = 0x5F
+; hfuse memory = 0xDF
+; efuse memory = 0xC4
 
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
@@ -133,9 +141,11 @@
 
 reset_vector:
       cli                     ; Possibly unnecessary, maybe do something else?
+      clr         rZERO       ; Initialize rZERO (R2 register = zero)
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
+; initial 2 bytes of 9 LWORDS (36 bytes) are already used.
 
 ;       .long       0       /* External Interrupt Request 0 */
 ;       .long       0       /* External Interrupt Request 1 */
@@ -147,7 +157,7 @@ reset_vector:
 ;       .long       0       /* Reserved */
 ;       .long       0       /* Pin Change Interrupt Request 0 */
 
-; We have a total of 9 LWORDS (36 bytes) to hide part of the USB descriptors
+; We have a total of 34 bytes to hide part of the USB descriptors
 ; We could just hide the Device Descriptor there, but we would waste 18 bytes
 ; since the config_descriptor would have to be moved after the USB-related ISRs
 ; (USB General Interrupt Request and the USB Endpoint Interrupt Request); instead,
@@ -205,6 +215,25 @@ endpoint_descriptor:
       .org        reset_vector + 0x28
       .global     USB_General_Vector
 USB_General_Vector:
+      ; We have 4 bytes here
+      ;
+      ; WARNING: REGISTERS/CONTEXT NOT SAVED!
+
+      ; ASSUMPTION!
+      ; We know we ONLY enabled End Of Reset Interrupt (EORSTE) during initialization, so we are not checking for that here;
+      ; basically, if we enter this interrupt it's because we need to service the End Of Reset Interrupt (EORSTI)
+
+      ; This following line will be necessary if the assumption above ever changes, since we would need to filter invidual interrupt sources
+      ; ldd         r17, Y+oUDINT                 ; Load r17 with the value in the USB Device Interrupt Flag Register (UDINT), create a copy of the interrupt flags
+
+      ; Given the assumption above, we can simply clear the whole USB Device Interrupt Flag Register (UDINT) to acknowledge the interrupt
+      std         Y+oUDINT, rZERO               ; Load the USB Device Interrupt Flag Register (UDINT) with zero (clear all USB-related interrupts)
+
+      ; If we ever need to distinguish among multiple interrupt sources, we can filter them using code like the following
+      ; sbrs        r17, EORSTI                   ; Skip the next instruction if the End Of Reset Interrupt Flag (EORSTI) is set;
+                                                  ; Don't jump if “End Of Reset” has been detected by the USB controller; thus service the End Of Reset interrupt
+      ; rjmp        not_EORSTI
+
       rjmp        USB_General_ISR     /* USB General Interrupt Request */
 
       .org        reset_vector + 0x2c
@@ -258,7 +287,11 @@ hid_report_descriptor:
 ; =================================================================
 
 main:
-      clr         rZERO                         ; Initialize rZERO (R2 register = zero)
+; =================================================================
+; = Initialize constants
+; =================================================================
+      ; Set R3=rONE
+      clr         rONE                          ; Initialize rONE as 0 (application may have set this before RESET)
       inc         rONE                          ; Initialize rONE  (R3 register = one)
 
       ; Create a copy of the MCUSR (MCU Status Register) as soon as possible
@@ -324,9 +357,9 @@ run_bootloader:
       ; sbrs        r17, EXTON                    ; Skip the next instruction if the External Clock On bit (EXTON) is set (External Clk is running); basically, move on
       ; rjmp        1b                            ; Jump to 1Backwards if the External Clock On bit (EXTON) is not set (External Clk not running)
 
-      ; ldi         r17, _BV(CLKPCE)              ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
-      ; sts         CLKPR, r17                    ; Store r17 to the Clock Prescaler Register (CLKPR)
-      ; sts         CLKPR, rZERO                  ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
+      ldi         r17, _BV(CLKPCE)              ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
+      sts         CLKPR, r17                    ; Store r17 to the Clock Prescaler Register (CLKPR)
+      sts         CLKPR, rZERO                  ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
 
 ; =================================================================
 ; = Basic device setup is NOW COMPLETE!!
@@ -456,9 +489,7 @@ wait_pll_lock:
 ; =================================================================
 
 main_loop:
-      brtc        exit_bootloader               ; check BootLoaderActive flag, branch if cleared
-      rjmp        main_loop                     ; while the T flag in SREG is set, keep looping
-
+      brts        main_loop     ; Loop while the T (=BootLoaderActive) flag in SREG is set
 
 exit_bootloader:
       ; Detach device from USB Bus
@@ -498,24 +529,7 @@ final_loop:
       .global     USB_General_ISR
 USB_General_ISR:
 
-      ; WARNING: REGISTERS/CONTEXT NOT SAVED!
-
-      ; ASSUMPTION!
-      ; We know we ONLY enabled End Of Reset Interrupt (EORSTE) during initialization, so we are not checking for that here;
-      ; basically, if we enter this interrupt it's because we need to service the End Of Reset Interrupt (EORSTI)
-
-      ; This following line will be necessary if the assumption above ever changes, since we would need to filter invidual interrupt sources
-      ; ldd         r17, Y+oUDINT                 ; Load r17 with the value in the USB Device Interrupt Flag Register (UDINT), create a copy of the interrupt flags
-
-      ; Given the assumption above, we can simply clear the whole USB Device Interrupt Flag Register (UDINT) to acknowledge the interrupt
-      std         Y+oUDINT, rZERO               ; Load the USB Device Interrupt Flag Register (UDINT) with zero (clear all USB-related interrupts)
-
-      ; If we ever need to distinguish among multiple interrupt sources, we can filter them using code like the following
-      ; sbrs        r17, EORSTI                   ; Skip the next instruction if the End Of Reset Interrupt Flag (EORSTI) is set;
-                                                  ; Don't jump if “End Of Reset” has been detected by the USB controller; thus service the End Of Reset interrupt
-      ; rjmp        not_EORSTI
-
-service_EORSTI:
+; service_EORSTI:                              ; unused label
 
 ; =================================================================
 ; = Configure Endpoint0
@@ -606,7 +620,7 @@ HOST_TO_DEVICE:
       cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
       breq        HANDLE_USB_CLAS_INTERFACE                 ; jump to END_USB_Device_ControlRequest
 
-      rjmp        UNHANDLED_HOST_TO_DEVICE
+      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 HANDLE_USB_STANDARD_DEVICE:
 
@@ -616,13 +630,11 @@ HANDLE_USB_STANDARD_DEVICE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
       breq        SET_CONFIGURATION             ; jump to SET_CONFIGURATION
 
-      rjmp        UNHANDLED_HOST_TO_DEVICE
+      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 HANDLE_USB_CLAS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
       breq        SET_HID_REPORT                ; jump to END_USB_Device_ControlRequest
-
-UNHANDLED_HOST_TO_DEVICE:
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 
@@ -775,8 +787,6 @@ GET_DESCRIPTOR:
       ldi         ZH, 0x7E    ; Load ZH with the most significant 8 bits of the descriptors address (0x7E)
 
       ; High byte of wValue for GET_DESCRIPTOR transactions specifies Descriptor Type
-      cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
-      breq        send_device_descriptor        ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that
       cpi         reg_wValueH, 0x02             ; Compare high byte of wValue with value 2;
       breq        send_config_descriptor        ; If high byte of wValue is 0x02 (Configuration Descriptor), jump to handle that
       cpi         reg_wValueH, 0x21             ; Compare high byte of wValue with value 0x21;
@@ -787,6 +797,9 @@ GET_DESCRIPTOR:
       ; If needed, include other descriptors here
 
       ; @SAVE_SPACE: I was able to comment this out and things still work, but it's probably bad (saves two bytes)
+      ;  ; The following 2 lines are also dropped since we are skipping "rjmp UNHANDLED_SETUP_REQUEST"
+      ; cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
+      ; breq        send_device_descriptor        ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that
       ; rjmp        UNHANDLED_SETUP_REQUEST       ; If the requested descriptor is not supported jump to UNHANDLED_SETUP_REQUEST
 
 send_device_descriptor:
@@ -833,7 +846,8 @@ send_descriptor:
       ; Abort if RXSTPI is set
       ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-      rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+      reti
 
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's an OUT packet from the host)
@@ -872,7 +886,8 @@ acknowledge_rxouti:
       ; Abort if RXSTPI is set
       ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
-      rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+;     rjmp        EP_ISR_END                    ; Jump if RXSTPI is set, we need to prioritize SETUP packets, so return
+      reti
 
       ; Acknowledge the OUT packet
       rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
@@ -883,8 +898,8 @@ UNHANDLED_SETUP_REQUEST:
       ; (UEINTX & (1 << RXSTPI))
       ldd         r16, Y+oUEINTX                 ; Load r16 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrs        r16, RXSTPI                    ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; received SETUP packet?
-      rjmp        EP_ISR_END                     ; Jump if RXSTPI is not set, SETUP packet already handled
-
+;     rjmp        EP_ISR_END                     ; Jump if RXSTPI is not set, SETUP packet already handled
+      reti
       ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
 
       ; Acknowledge the SETUP packet
