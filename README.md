@@ -8,15 +8,13 @@ The name *nanoBoot* comes from the fact that the compiled source fits in the sma
 
 It's very likely that a few sections can be rewritten to make it even smaller, and the ultimate goal is to support EEPROM programming as well, although that would require changes to the host code.
 
-<!--The current version (commit #[5401f92](https://github.com/volium/nanoBoot/commit/5f84c0c44d78e907de869176c576855c8ba7a2f2)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115), and is exactly 508 bytes long.-->
-
-The current version (2020-04-03) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115), and is exactly 512 bytes long.
+The current version (commit #[52826ed](https://github.com/volium/nanoBoot/commit/52826edb7256d327e3dbdcc6016cfb71b43201fe)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115), and is exactly 510 bytes long.
 
 ## HW assumptions:
 
 * CLK is 16 MHz Crystal and fuses are setup correctly to support it:
     * Select Clock Source (CKSEL3:CKSEL0) fuses are set to Extenal Crystal, CKSEL=1111 SUT=11
-    * Divide clock by 8 fuse (CKDIV8) can be any value.
+    * Divide clock by 8 fuse (CKDIV8) can be set to either 0 or 1
 * Bootloader starts on reset; Hardware Boot Enable fuse is configured, HWBE=0
 * Boot Flash Size is set correctly to 256 words (512 bytes), StartAddress=0x3F00, BOOTSZ=11
 * Device signature = 0x1E9587
@@ -26,8 +24,8 @@ The current version (2020-04-03) is supported as-is in the 'hid_bootloader_loade
     * hfuse memory = 0xD6 (EESAVE=0, BOOTRST=0)
     * efuse memory = 0xC7 (=0xF7, No BOD)
 
-* Alternatively BOD can be used to ease CKSEL-SUT setting requirements to
-  allow teensy like FUSE setting
+* Alternatively, BOD can be used to ease CKSEL-SUT setting requirements to
+  allow teensy-like FUSE settings:
     * lfuse memory = 0x5F (CKDIV8=0, 16CK + 0ms)
     * hfuse memory = 0xDF (EESAVE=1, BOOTRST=1)
     * efuse memory = 0xF4 (BOD=2.4V)
