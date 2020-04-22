@@ -48,6 +48,28 @@
 ; hfuse memory = 0xDF
 ; efuse memory = 0xC4
 
+; LED -- Configure this for the LED
+;
+; LED is on D6 for Teensy 2.0 compatible board (Adjust for other board)
+#define LED_BIT   6
+#define LED_CONF  DDRD
+#define LED_PORT  PORTD
+
+; LED is on C7 for Leonardo/Nano compatible board (Adjust for other board)
+; #define LED_BIT   7
+; #define LED_CONF  DDRC
+; #define LED_PORT  PORTC
+
+; LED (TX) is on D5 for Pro Micro compatible board (Adjust for other board)
+; #define LED_BIT   5
+; #define LED_CONF  DDRD
+; #define LED_PORT  PORTD
+
+; LED (RX) is on B3 for Pro Micro compatible board (Adjust for other board)
+; #define LED_BIT   3
+; #define LED_CONF  DDRB
+; #define LED_PORT  PORTB
+
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
 ; but, since we only use EP0, this is not that important
@@ -123,6 +145,14 @@
 #define oUEBCHX      (UEBCHX  - USB_BASE)
 #define oUEINT       (UEINT   - USB_BASE)   ; This register has the bits to identify which endpoint triggered an interrupt
 
+;
+; To facilitate coding, we will also use the Y register to point to the first Extended IO register;
+; We can then use LDD / STD (Y+oU....) to address non-USB extended IO registers (EIO_BASE + relative offset)
+; (These are used only in start-up and exit routines when USB is not active)
+;
+#define EIO_BASE     WDTCSR
+#define oWDTCSR      (WDTCSR  - EIO_BASE)
+#define oCLKPR       (CLKPR   - EIO_BASE)
 
 #include <avr/io.h>
 
@@ -310,14 +340,15 @@ main:
       in          rMCUSR, _SFR_IO_ADDR(MCUSR)   ; Load MCU Status Register to rMCUSR
       out         _SFR_IO_ADDR(MCUSR), rZERO    ; Load MCU Status Register with rZERO (clear reset flags, particularly clear WDRF in MCUSR), necessary before disabling the Watchdog
 
-      ; We MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
-      ; Disable Watchdog Timer
-      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
-                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
-
+      ; Set YH=R29 to 0 for addressing extended io for any 64 bytes of YL specified section.
+      ;     YL=lo8(EIO_BASE)  initial routine
+      ;     YL=lo8(USB_BASE)  main routine
+      ;     YL=lo8(EIO_BASE)  exit routine
+      clr         YH                            ; 0 = hi8(USB_BASE)
+      ldi         YL, lo8(EIO_BASE)             ; Load YL with EIO_BASE (initial)
       mov         r17,  rZERO                   ; Load r17 with zero to disable the Watchdog Timer completely
 
-      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded r17 (r16 used inside set_watchdog_timer)
 
 ; check_reset_flags:
       sbrs        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction, go to run_bootloader)
@@ -326,6 +357,7 @@ run_application:                                ; We get here if the cause of th
       jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
 
 run_bootloader:
+      sbi         _SFR_IO_ADDR(LED_CONF), LED_BIT ; Set IO register as output for LED
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
 
 
@@ -377,8 +409,9 @@ run_bootloader:
       ; code to work as expected.
 
       ldi         r17, _BV(CLKPCE)                ; Load r17 with the value needed to "unlock" the prescaler of the Clock; Clock Prescaler Change Enable bit (CLKPCE) set to one, all other bits set to zero.
-      sts         CLKPR, r17                      ; Store r17 to the Clock Prescaler Register (CLKPR)
-      sts         CLKPR, rZERO                    ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
+                                                  ; still YH=0, YL=lo8(EIO_BASE)  initial routine
+      std         Y+oCLKPR, r17                   ; Store r17 to the Clock Prescaler Register (CLKPR)
+      std         Y+oCLKPR, rZERO                 ; Store rZERO to the Clock Prescaler Register (CLKPR), setting CLKPS3, CLKPS2, CLKPS1 and CLKPS0 to zero (Clock Division Factor = 1; System Clock is 16 MHz)
 
 ; =================================================================
 ; = Basic device setup is NOW COMPLETE!!
@@ -390,7 +423,8 @@ run_bootloader:
 ; =================================================================
 
       ldi         YL, lo8(USB_BASE)             ; Load YL with the least significant 8 bits of USB_BASE
-      ldi         YH, hi8(USB_BASE)             ; Load YH with the most significant 8 bits of USB_BASE
+                                                ; still YH=0
+      ; ldi         YH, hi8(USB_BASE)           ; Load YH with the most significant 8 bits of USB_BASE
 
       ; =================================================================
       ; = From LUFA simplified - USB_Init:_start
@@ -521,12 +555,11 @@ exit_bootloader:
 ; = Watchdog Timer initialization
 ; =================================================================
 
+      cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting
       ; NOTE!! This part of the code assumes MCUSR has already been cleared
 
+      ldi         YL, lo8(EIO_BASE)             ; Load YL with EIO_BASE (exit)
       ; Enable WDT, ~250 ms timeout (force a timeout to reset the AVR)
-      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
-                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
-
       ldi         r17, _BV(WDE) | _BV(WDP2)     ; Load r17 with the value needed to set the desired Watchdog Configuration (WDCE = 0, not set!)
                                                 ; Write the WDE and Watchdog prescaler bits (WDP); System Reset Mode (WDE = 1) and ~250 ms timeout (WDP2 = 1)
 
@@ -828,6 +861,7 @@ GET_DESCRIPTOR:
       ; rjmp        UNHANDLED_SETUP_REQUEST       ; If the requested descriptor is not supported jump to UNHANDLED_SETUP_REQUEST
 
 send_device_descriptor:
+      sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Turn on LED just before sending device ID
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(device_descriptor)    ; Load ZL with the least significant 8 bits of device_descriptor
@@ -949,13 +983,18 @@ EP_ISR_END:
 set_watchdog_timer:
 
       ; IMPORTANT!! This function assumes the correct values for the WDTCSR register
-      ; configuration are already loaded onto r16 and 17.
+      ; configuration are already loaded onto r17.
+
+      ; always set YH to hi(EIO_BASE) before calling
 
       wdr                                       ; Reset the Watchdog Timer
 
+      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
+                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
+      std         Y+oWDTCSR, r16                ; Store r16 to the Watchdog Timer Control Register (WDTCSR)
+
       ; Load the desired configuration to the Watchdog Timer Control Register (WDTCSR)
-      sts         WDTCSR, r16                   ; Store r16 to the Watchdog Timer Control Register (WDTCSR)
-      sts         WDTCSR, r17                   ; Store r17 to the Watchdog Timer Control Register (WDTCSR)
+      std         Y+oWDTCSR, r17                ; Store r17 to the Watchdog Timer Control Register (WDTCSR)
 
       ret
 
