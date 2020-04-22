@@ -310,14 +310,9 @@ main:
       in          rMCUSR, _SFR_IO_ADDR(MCUSR)   ; Load MCU Status Register to rMCUSR
       out         _SFR_IO_ADDR(MCUSR), rZERO    ; Load MCU Status Register with rZERO (clear reset flags, particularly clear WDRF in MCUSR), necessary before disabling the Watchdog
 
-      ; We MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
-      ; Disable Watchdog Timer
-      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
-                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
-
       mov         r17,  rZERO                   ; Load r17 with zero to disable the Watchdog Timer completely
 
-      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded r17 (r16 used inside set_watchdog_timer)
 
 ; check_reset_flags:
       sbrs        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction, go to run_bootloader)
@@ -524,9 +519,6 @@ exit_bootloader:
       ; NOTE!! This part of the code assumes MCUSR has already been cleared
 
       ; Enable WDT, ~250 ms timeout (force a timeout to reset the AVR)
-      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
-                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
-
       ldi         r17, _BV(WDE) | _BV(WDP2)     ; Load r17 with the value needed to set the desired Watchdog Configuration (WDCE = 0, not set!)
                                                 ; Write the WDE and Watchdog prescaler bits (WDP); System Reset Mode (WDE = 1) and ~250 ms timeout (WDP2 = 1)
 
@@ -949,9 +941,14 @@ EP_ISR_END:
 set_watchdog_timer:
 
       ; IMPORTANT!! This function assumes the correct values for the WDTCSR register
-      ; configuration are already loaded onto r16 and 17.
+      ; configuration are already loaded onto r17.
 
       wdr                                       ; Reset the Watchdog Timer
+
+      ; We MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
+      ; Disable Watchdog Timer
+      ldi         r16, _BV(WDCE) | _BV(WDE)     ; Load r16 with the value needed to "unlock" the Watchdog Timer Configuration
+                                                ; Write a logic one to the Watchdog Change Enable bit (WDCE) and Watchdog System Reset Enable (WDE)
 
       ; Load the desired configuration to the Watchdog Timer Control Register (WDTCSR)
       sts         WDTCSR, r16                   ; Store r16 to the Watchdog Timer Control Register (WDTCSR)
