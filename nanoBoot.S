@@ -48,6 +48,28 @@
 ; hfuse memory = 0xDF
 ; efuse memory = 0xC4
 
+; LED -- Configure this for the LED
+;
+; LED is on D6 for Teensy 2.0 compatible board (Adjust for other board)
+#define LED_BIT   6
+#define LED_CONF  DDRD
+#define LED_PORT  PORTD
+
+; LED is on C7 for Leonardo/Nano compatible board (Adjust for other board)
+; #define LED_BIT   7
+; #define LED_CONF  DDRC
+; #define LED_PORT  PORTC
+
+; LED (TX) is on D5 for Pro Micro compatible board (Adjust for other board)
+; #define LED_BIT   5
+; #define LED_CONF  DDRD
+; #define LED_PORT  PORTD
+
+; LED (RX) is on B3 for Pro Micro compatible board (Adjust for other board)
+; #define LED_BIT   3
+; #define LED_CONF  DDRB
+; #define LED_PORT  PORTB
+
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
 ; but, since we only use EP0, this is not that important
@@ -321,6 +343,7 @@ run_application:                                ; We get here if the cause of th
       jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
 
 run_bootloader:
+      sbi         _SFR_IO_ADDR(LED_CONF), LED_BIT ; Set IO register as output for LED
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
 
 
@@ -516,6 +539,7 @@ exit_bootloader:
 ; = Watchdog Timer initialization
 ; =================================================================
 
+      cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting
       ; NOTE!! This part of the code assumes MCUSR has already been cleared
 
       ; Enable WDT, ~250 ms timeout (force a timeout to reset the AVR)
@@ -820,6 +844,7 @@ GET_DESCRIPTOR:
       ; rjmp        UNHANDLED_SETUP_REQUEST       ; If the requested descriptor is not supported jump to UNHANDLED_SETUP_REQUEST
 
 send_device_descriptor:
+      sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Turn on LED just before sending device ID
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(device_descriptor)    ; Load ZL with the least significant 8 bits of device_descriptor
