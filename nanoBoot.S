@@ -864,8 +864,7 @@ send_device_descriptor:
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(device_descriptor)    ; Load ZL with the least significant 8 bits of device_descriptor
-      ldi         r16, 18                       ; Load r16 with length of device_descriptor (18 bytes)
-      rjmp        process_descriptor            ; jump to process_descriptor
+      rjmp        process_single_descriptor     ; jump to process_single_descriptor
 
 send_config_descriptor:
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
@@ -887,7 +886,10 @@ send_hid_descriptor:
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(hid_descriptor)       ; Load ZL with the least significant 8 bits of hid_descriptor
-      ldi         r16, 9                        ; Load r16 with length of hid_descriptor (9 bytes)
+
+process_single_descriptor:
+
+      lpm         r16, Z                        ; Load r16 with the first byte of descriptor, which contains its length in bytes
 
 process_descriptor:
 
