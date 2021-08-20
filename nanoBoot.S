@@ -656,11 +656,10 @@ HANDLE_USB_STANDARD_DEVICE:
                                                 ; fallthrough to SET_CONFIGURATION if equal
 SET_CONFIGURATION:
 
-      rcall       process_Host2Device           ; This function affects r17
+      ; Dirty trick: We don't need to do anything for SET_CONFIGURATION except process_Host2Device,
+      ; so we reuse the SET_ADDRESS code by making it reload the same value to UDADDR.
 
-UNHANDLED_SETUP_REQUEST_1:
-      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
-
+      ldd         reg_wValueL, Y+oUDADDR        ; load the existing UDADDR value where the SET_ADDRESS code would expect the new address
 
 SET_ADDRESS:
 
@@ -679,6 +678,7 @@ SET_ADDRESS:
       ori         reg_wValueL, _BV(ADDEN)       ; In order to save space, we simply OR the address value already in reg_wValueL (r20) with the ADDEN bit to enable the USB Address
       std         Y+oUDADDR, reg_wValueL        ; Store reg_wValueL to the USB Device Address Register (UDADDR)
 
+UNHANDLED_SETUP_REQUEST_1:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
 SET_HID_REPORT:
