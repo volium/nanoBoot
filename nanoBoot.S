@@ -681,14 +681,13 @@ HANDLE_USB_STANDARD_DEVICE:
       cpi         reg_bRequest, 0x05            ; Compare bRequest with value 0x05 (REQ_SetAddress)
       breq        SET_ADDRESS                   ; jump to SET_ADDRESS
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
-      breq        SET_CONFIGURATION             ; jump to SET_CONFIGURATION
-
-      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
-
+      brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
+                                                ; fallthrough to SET_CONFIGURATION if equal
 SET_CONFIGURATION:
 
       rcall       process_Host2Device           ; This function affects r17
 
+UNHANDLED_SETUP_REQUEST_1:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
 
