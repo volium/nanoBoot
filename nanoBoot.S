@@ -953,20 +953,10 @@ send_packet_done:
       ; Wait for the host to send an OUT packet (RXOUTI to assert), but abort if a SETUP packet is received
 wait_finish_transfer:
       ldd         r17, Y+oUEINTX                ; Load r17 with the most current value in the USB Endpoint Interrupt Register (UEINTX);
-      sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's already an OUT packet from the host), go to acknowledge_rxouti
-      sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is not set; no need to abort, we haven't received another SETUP packet, we can keep looping
-      rjmp        acknowledge_rxouti            ; Jump if either RXOUTI or RXSTPI are set
-      rjmp        wait_finish_transfer          ; Loop back to finish_transfer until either Received OUT Data Interrupt Flag (RXOUTI) or Received SETUP Interrupt Flag (RXSTPI) is set
-
-acknowledge_rxouti:
-
-      ; We could have gotten here if we got out of the previous loop (wait_finish_transfer) if either RXOUTI or RXSTPI asserted, since RXSTPI has the HIGHEST priority,
-      ; we check for it here first, to decide whether or not we need to abort
-
-      ; Abort if RXSTPI is set
-      ; NOTE: R17 already has the most current value of UEINTX, no need to load it again
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
       reti                                      ; Return if RXSTPI is set, we need to prioritize SETUP packets
+      sbrs        r17, RXOUTI                   ; Skip the next instruction if the Received OUT Data Interrupt Flag (RXOUTI) is set (there's already an OUT packet from the host)
+      rjmp        wait_finish_transfer          ; Loop back to finish_transfer if none of RXSTPI or RXOUTI flags are set
 
       ; Acknowledge the OUT packet
       rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
