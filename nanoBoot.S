@@ -742,11 +742,9 @@ UNHANDLED_SETUP_REQUEST_1:
 
 SET_HID_REPORT:
 
-      ; Acknowledge the SETUP packet
-      rcall       clear_RXSTPI                  ; This function uses r17 to clear the RXSTPI bit in UEINTX
-
-      ; Wait for command from the host
-      rcall       wait_RXOUTI                   ; This function loads r17 with value of UEINTX
+      ; Acknowledge the SETUP packet and wait for command from the host
+      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+      rcall       clear_bit_and_wait_RXOUTI     ; This function loads r17 with value of UEINTX
 
 load_page_address:
       ; We store the page address in r15:r14 and not in r31:r30 because we need
@@ -787,11 +785,9 @@ check_endpoint_for_more_data:
       or          r26, r26
       brne        fill_page_buffer              ; if r26 is not zero, it means there's data in the endpoint which we can use to fill the page buffer, jump there
 
-      ; Acknowledge the OUT packet
-      rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
-
-      ; Wait for more data from the host
-      rcall       wait_RXOUTI                   ; This function loads r17 with value of UEINTX
+      ; Acknowledge the OUT packet and wait for more data from the host
+      ldi         r17, ~(_BV(RXOUTI))           ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
+      rcall       clear_bit_and_wait_RXOUTI     ; This function loads r17 with value of UEINTX
 
 fill_page_buffer:                               ; There's data at the endpoint buffer, start fill_page_buffer sequence
 
@@ -822,14 +818,13 @@ reenable_rww_section:
 
 finish_hid_request:
 
-      ; Acknowledge the OUT packet
-      rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
-
-      ; Wait for TXINI (OK to transmit)
-      rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
+      ; Acknowledge the OUT packet and wait for TXINI (OK to transmit)
+      ldi         r17, ~(_BV(RXOUTI))           ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
+      rcall       clear_bit_and_wait_TXINI      ; This function loads r17 with value of UEINTX
 
       ; Clear Transmitter Ready Flag
-      rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
+      ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
 UNHANDLED_DEVICE_TO_HOST:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
@@ -915,7 +910,8 @@ process_single_descriptor:
 process_descriptor:
 
       ; Acknowledge the SETUP packet
-      rcall       clear_RXSTPI                  ; This function uses r17 to clear the RXSTPI bit in UEINTX
+      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
 verifyMaxDescriptorLength:
       cp          reg_wLengthL, r16             ; Compare the value in r24 (wLengthL) against the value in r16 (length of descriptor to send)
@@ -948,7 +944,8 @@ transfer_descriptor:
 send_packet_done:
 
       ; Clear Transmitter Ready Flag
-      rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
+      ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
       ; Wait for the host to send an OUT packet (RXOUTI to assert), but abort if a SETUP packet is received
 wait_finish_transfer:
@@ -959,7 +956,8 @@ wait_finish_transfer:
       rjmp        wait_finish_transfer          ; Loop back to finish_transfer if none of RXSTPI or RXOUTI flags are set
 
       ; Acknowledge the OUT packet
-      rcall       clear_RXOUTI                  ; This function uses r17 to clear the RXOUTI bit in UEINTX
+      ldi         r17, ~(_BV(RXOUTI))           ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
 UNHANDLED_SETUP_REQUEST:
 
@@ -972,7 +970,8 @@ UNHANDLED_SETUP_REQUEST:
       ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
 
       ; Acknowledge the SETUP packet
-      rcall       clear_RXSTPI                  ; This function uses r17 to clear the RXSTPI bit in UEINTX
+      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
       ; STALL transaction
 
@@ -1018,20 +1017,14 @@ process_Host2Device:
 
       ; NOTE: All the functions here affect r17
 
-      ; Acknowledge the SETUP packet
-      rcall       clear_RXSTPI                  ; This function uses r17 to clear the RXSTPI bit in UEINTX
+      ; Acknowledge the SETUP packet and wait for TXINI (OK to transmit)
+      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+      rcall       clear_bit_and_wait_TXINI      ; This function loads r17 with value of UEINTX
 
-      ; Wait for TXINI (OK to transmit)
-      rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
-
-      ; Clear Transmitter Ready Flag
-      rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
-
-      ; SIZE OPTIMIZATION: Fall through to wait_TXINI instead of rcall'ing it
-      ; Wait for TXINI (OK to transmit)
-      ; rcall       wait_TXINI                    ; This function loads r17 with value of UEINTX
-      ; ret                                       ; Return from call
-
+      ; Clear Transmitter Ready Flag and wait for TXINI (OK to transmit)
+      ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
+clear_bit_and_wait_TXINI:
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 wait_TXINI:
 
       ; NOTE: This function uses r17, we can use this fact to code other stuff
@@ -1045,39 +1038,8 @@ wait_TXINI:
       ret                                       ; Return from call
 
 
-clear_RXSTPI:
-
-      ; NOTE: This function affects r17
-
-      ; Acknowledge the SETUP packet
-      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+clear_bit_and_wait_RXOUTI:
       std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      ret                                       ; Return from call
-
-
-clear_TXINI:
-
-      ; NOTE: This function affects r17
-
-      ; Clear Transmitter Ready Flag
-      ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
-      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      ret                                       ; Return from call
-
-
-clear_RXOUTI:
-
-      ; NOTE: This function affects r17
-
-      ; Acknowledge the OUT packet
-      ldi        r17, ~(_BV(RXOUTI))            ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
-      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      ret                                       ; Return from call
-
-
 wait_RXOUTI:
 
       ; NOTE: This function uses r17, we can use this fact to code other stuff
