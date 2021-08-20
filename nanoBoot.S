@@ -652,6 +652,13 @@ HANDLE_USB_STANDARD_DEVICE:
 
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
+SET_CONFIGURATION:
+
+      rcall       process_Host2Device           ; This function affects r17
+
+      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
+
+
 HANDLE_USB_CLAS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
       breq        SET_HID_REPORT                ; jump to SET_HID_REPORT
@@ -676,13 +683,6 @@ SET_ADDRESS:
       std         Y+oUDADDR, reg_wValueL        ; Store reg_wValueL to the USB Device Address Register (UDADDR)
 
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
-
-SET_CONFIGURATION:
-
-      rcall       process_Host2Device           ; This function affects r17
-
-      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
-
 
 SET_HID_REPORT:
 
