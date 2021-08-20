@@ -805,6 +805,7 @@ finish_hid_request:
       ; Clear Transmitter Ready Flag
       rcall       clear_TXINI                   ; This function uses r17 to clear the TXINI bit in UEINTX
 
+UNHANDLED_DEVICE_TO_HOST:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
 
@@ -822,11 +823,8 @@ DEVICE_TO_HOST:
       brne        UNHANDLED_DEVICE_TO_HOST      ; If bmRequestType is not 0x80, we know it's not a GET_DESCRIPTOR request, so jump to UNHANDLED_DEVICE_TO_HOST
 
       cpi         reg_bRequest, 0x06            ; Compare bRequest with value 0x06 (REQ_GetDescriptor)
-      breq        GET_DESCRIPTOR                ; jump to GET_DESCRIPTOR
-
-UNHANDLED_DEVICE_TO_HOST:
-      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x80/0x81 or bRequest is not 0x06, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
-
+      brne        UNHANDLED_DEVICE_TO_HOST      ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
+                                                ; fallthrough to GET_DESCRIPTOR if equal
 GET_DESCRIPTOR:
 
       ; Just get the descriptor address into
