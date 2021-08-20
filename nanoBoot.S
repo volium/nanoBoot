@@ -653,11 +653,10 @@ USB_Endpoint_ISR:
       ; Shorter version
       clr         XH                            ; Clear XH Register
       ldi         XL, 18                        ; Load XL Register with number 18 (this will be used to refer to r18)
-      ldi         r16, 8                        ; Load r16 with number 8 (the number of fields <SETUP Packets> we need to read)
 load: ldd         r0, Y+oUEDATX                 ; Load r0 with the value in the USB Endpoint Data Register (UEDATX)
       st          X+, r0                        ; Store the value of r0 to the location pointed by X (r18), post increment X (X now points to r19)
-      dec         r16                           ; Decrement r16
-      brne        load                          ; Jump back to 'load' if r16 is not zero
+      cpi         XL, 18+8                      ; Compare XL with the location past the last byte that we need to read
+      brne        load                          ; Jump back to 'load' if there are still bytes to read
 
       ; Our response is based on data direction...
       sbrc        reg_bmRequestType, 7          ; Skip the next instruction if bit 7 of bmRequestType is not set; for host to device (OUT) transaction, bit 7 is cleared
