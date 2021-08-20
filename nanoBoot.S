@@ -874,20 +874,20 @@ send_config_descriptor:
       ldi         r16, 34                       ; Load r16 with length of config_descriptor (34 bytes)
       rjmp        process_descriptor            ; jump to process_descriptor
 
-send_hid_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descriptor,
-                                                ; the higher portion is common for all descriptors
-      ldi         ZL, lo8(hid_descriptor)       ; Load ZL with the least significant 8 bits of hid_descriptor
-      ldi         r16, 9                        ; Load r16 with length of hid_descriptor (9 bytes)
-      rjmp        process_descriptor            ; jump to process_descriptor
-
 send_hid_report_descriptor:
                                                 ; We only load the lower portion (lo8) of the address of the descriptor,
                                                 ; the higher portion is common for all descriptors
       ldi         ZL, lo8(hid_report_descriptor); Load ZL with the least significant 8 bits of hid_report_descriptor
       ldi         r16, 21                       ; Load r16 with length of hid_report_descriptor (21 bytes)
+      rjmp        process_descriptor            ; jump to process_descriptor
 
       ; If needed, include other descriptors here
+
+send_hid_descriptor:
+                                                ; We only load the lower portion (lo8) of the address of the descriptor,
+                                                ; the higher portion is common for all descriptors
+      ldi         ZL, lo8(hid_descriptor)       ; Load ZL with the least significant 8 bits of hid_descriptor
+      ldi         r16, 9                        ; Load r16 with length of hid_descriptor (9 bytes)
 
 process_descriptor:
 
