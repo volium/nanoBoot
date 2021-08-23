@@ -553,29 +553,55 @@ USB_General_ISR:
 ; service_EORSTI:                              ; unused label
 
 ; =================================================================
-; = Configure Endpoint0
+; = Configure Endpoints
 ; =================================================================
 
-      ; ASSUMPTION!
-      ; We only use Endpoint0, and the reset value of the USB Device Select Endpoint Number Register (UENUM) is Zero,
-      ; so we don't need to select it or do anything else
+      ; Even though the bootloader uses only endpoint 0, the HID spec requires any HID device to have an
+      ; Interrupt IN endpoint, and the host can decide to poll that endpoint even when the HID report
+      ; descriptor does not actually declare any input reports.  Polling an unconfigured endpoint causes
+      ; USB errors, therefore endpoint 1 must be configured here too.
 
-      ; Enable Endpoint
+      ; Enable and configure endpoint 1 as Interrupt IN:
+      ; UENUM = 1;
+      ; UECONX |= (1 << EPEN);
+      ; UECFG0X = (1 << EPTYPE1) | (1 << EPTYPE0) | (1 << EPDIR);
+      ; UECFG1X = (1 << EPSIZE1) | (1 << EPSIZE0) | (1 << ALLOC);
+
+      std         Y+oUENUM, rONE                ; Select Endpoint 1
+
+                                                ; Set Endpoint Enable Bit (EPEN), all other bits set to zero has no effect on UECONX
+      std         Y+oUECONX, rONE               ; Store the USB Endpoint Configuration Register (UECONX) with the value needed to enable Endpoint 1
+
+      ldi         r16, (_BV(EPTYPE1) | _BV(EPTYPE0) | _BV(EPDIR)) ; Load r16 with the value to configure Endpoint 1
+                                                                  ; Endpoint Type Bits (EPTYPE1:0); 11 to set as Interrupt Endpoint
+                                                                  ; Endpoint Direction Bit (EPDIR); set to configure IN direction
+
+      std         Y+oUECFG0X, r16               ; Store r16 to the USB Endpoint Configuration0 Register (UECFG0X);
+
+      ldi         r16, (_BV(EPSIZE1) | _BV(EPSIZE0) | _BV(ALLOC)) ; Load r16 with the value to configure Endpoint 1 (and also 0 below)
+                                                                  ; Endpoint Size Bits (EPSIZE2:0); 011 to set to 64 bytes
+                                                                  ; Endpoint Bank Bits (EPBK1:0); 00 to set One bank
+                                                                  ; Endpoint Allocation Bit (ALLOC); set to allocate the endpoint memory
+
+      std         Y+oUECFG1X, r16               ; Store r16 to the USB Endpoint Configuration1 Register (UECFG1X);
+
+      ; Enable and configure endpoint 0 as Control (this is done last, so that endpoint 0 will remain selected):
+      ; UENUM = 0;
       ; UECONX |= (1 << EPEN);
       ; UECFG0X = 0;
-      ; UECFG1X = 0x32;
+      ; UECFG1X = (1 << EPSIZE1) | (1 << EPSIZE0) | (1 << ALLOC);
+
+      std         Y+oUENUM, rZERO               ; Select Endpoint0
+
                                                 ; Set Endpoint Enable Bit (EPEN), all other bits set to zero has no effect on UECONX
-      std         Y+oUECONX, rONE               ; Store the USB Endpoint Configuration Register (UECONX) with the value needed to enable Enpoint 0
+      std         Y+oUECONX, rONE               ; Store the USB Endpoint Configuration Register (UECONX) with the value needed to enable Endpoint 0
 
       ; SIZE OPTIMIZATION: Not needed due to known reset value (Zero)
       ; std         Y+oUECFG0X, rZERO             ; Store rZERO to the USB Endpoint Configuration0 Register (UECFG0X);
                                                 ; Endpoint Type Bits (EPTYPE1:0): 00 to set as Control Endpoint
                                                 ; Endpoint Direction Bit (EPDIR): clear to configure OUT direction; needed for Control Endpoint
 
-      ldi         r16, (_BV(EPSIZE1) | _BV(EPSIZE0) | _BV(ALLOC)) ; Load r16 with the value to configure Enpoint 0
-                                                                  ; Endpoint Size Bits (EPSIZE2:0); 011 to set to 64 bytes
-                                                                  ; Endpoint Bank Bits (EPBK1:0); 00 to set One bank
-                                                                  ; Endpoint Allocation Bit (ALLOC); set to allocate the endpoint memory
+      ; SIZE OPTIMIZATION: r16 is already loaded with the required value while configuring endpoint 1 above
 
       std         Y+oUECFG1X, r16               ; Store r16 to the USB Endpoint Configuration1 Register (UECFG1X);
 
