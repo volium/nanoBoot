@@ -681,41 +681,6 @@ HANDLE_USB_CLAS_INTERFACE:
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
 
 
-HANDLE_USB_STANDARD_DEVICE:
-
-      ; Once we know we support the OUT transaction, we need to filter it based on the value in bRequest
-      cpi         reg_bRequest, 0x05            ; Compare bRequest with value 0x05 (REQ_SetAddress)
-      breq        SET_ADDRESS                   ; jump to SET_ADDRESS
-      cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
-      brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
-                                                ; fallthrough to SET_CONFIGURATION if equal
-SET_CONFIGURATION:
-
-      ; Dirty trick: We don't need to do anything for SET_CONFIGURATION except process_Host2Device,
-      ; so we reuse the SET_ADDRESS code by making it reload the same value to UDADDR.
-
-      ldd         reg_wValueL, Y+oUDADDR        ; load the existing UDADDR value where the SET_ADDRESS code would expect the new address
-
-SET_ADDRESS:
-
-      ; Set device address; for this we only need to copy the value in wValueL which contains the address
-      ; for the device set by the host to the USB Device Address Register (UDADDR); since the SET_ADDRESS
-      ; request is only executed once during enumeration, and because allowed address values are 1 through
-      ; 127 (7 LSBs), we don't need to care about the ADDEN bit (bit 7). We can also simply set the ADDEN
-      ; bit and store the value again in UDADDR to enable the USB Device Address.
-
-      std         Y+oUDADDR, reg_wValueL        ; Store wValueL to the USB Device Address Register (UDADDR)
-
-      rcall       process_Host2Device           ; This function affects r17
-
-      ; EnableDeviceAddress
-      ; UDADDR |= (1 << ADDEN)
-      ori         reg_wValueL, _BV(ADDEN)       ; In order to save space, we simply OR the address value already in reg_wValueL (r20) with the ADDEN bit to enable the USB Address
-      std         Y+oUDADDR, reg_wValueL        ; Store reg_wValueL to the USB Device Address Register (UDADDR)
-
-UNHANDLED_SETUP_REQUEST_1:
-      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
-
 SET_HID_REPORT:
 
       ; Acknowledge the SETUP packet and wait for command from the host
@@ -805,6 +770,41 @@ finish_hid_request:
 UNHANDLED_DEVICE_TO_HOST:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
+
+HANDLE_USB_STANDARD_DEVICE:
+
+      ; Once we know we support the OUT transaction, we need to filter it based on the value in bRequest
+      cpi         reg_bRequest, 0x05            ; Compare bRequest with value 0x05 (REQ_SetAddress)
+      breq        SET_ADDRESS                   ; jump to SET_ADDRESS
+      cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
+      brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
+                                                ; fallthrough to SET_CONFIGURATION if equal
+SET_CONFIGURATION:
+
+      ; Dirty trick: We don't need to do anything for SET_CONFIGURATION except process_Host2Device,
+      ; so we reuse the SET_ADDRESS code by making it reload the same value to UDADDR.
+
+      ldd         reg_wValueL, Y+oUDADDR        ; load the existing UDADDR value where the SET_ADDRESS code would expect the new address
+
+SET_ADDRESS:
+
+      ; Set device address; for this we only need to copy the value in wValueL which contains the address
+      ; for the device set by the host to the USB Device Address Register (UDADDR); since the SET_ADDRESS
+      ; request is only executed once during enumeration, and because allowed address values are 1 through
+      ; 127 (7 LSBs), we don't need to care about the ADDEN bit (bit 7). We can also simply set the ADDEN
+      ; bit and store the value again in UDADDR to enable the USB Device Address.
+
+      std         Y+oUDADDR, reg_wValueL        ; Store wValueL to the USB Device Address Register (UDADDR)
+
+      rcall       process_Host2Device           ; This function affects r17
+
+      ; EnableDeviceAddress
+      ; UDADDR |= (1 << ADDEN)
+      ori         reg_wValueL, _BV(ADDEN)       ; In order to save space, we simply OR the address value already in reg_wValueL (r20) with the ADDEN bit to enable the USB Address
+      std         Y+oUDADDR, reg_wValueL        ; Store reg_wValueL to the USB Device Address Register (UDADDR)
+
+UNHANDLED_SETUP_REQUEST_1:
+      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
 ; IN transactions
 DEVICE_TO_HOST:
