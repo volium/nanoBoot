@@ -919,60 +919,31 @@ GET_DESCRIPTOR:
       ; Just get the descriptor address into
       ; [RAMPZ:]Z, and the length into r16
 
-      ; We know ALL descriptors are at the beginning of the bootloader, in the reset_vector space,
-      ; and by inspection we can determine that they all share the same high byte of the address (0x7EXX)
-      ldi         ZH, 0x7E    ; Load ZH with the most significant 8 bits of the descriptors address (0x7E)
-
-      ; High byte of wValue for GET_DESCRIPTOR transactions specifies Descriptor Type
-      ; NOTE! We are skipping the comparison for 0x01 (Device Descriptor), since that can't really
-      ; be excluded, we simply assume that's the default to save space here. See @SAVE_SPACE below.
-      cpi         reg_wValueH, 0x02             ; Compare high byte of wValue with value 2;
-      breq        send_config_descriptor        ; If high byte of wValue is 0x02 (Configuration Descriptor), jump to handle that
-      cpi         reg_wValueH, 0x21             ; Compare high byte of wValue with value 0x21;
-      breq        send_hid_descriptor           ; If high byte of wValue is 0x21 (HID Class HID Descriptor), jump to handle that
-      cpi         reg_wValueH, 0x22             ; Compare high byte of wValue with value 0x22;
-      breq        send_hid_report_descriptor    ; If high byte of wValue is 0x22 (HID Class HID Report Descriptor), jump to handle that
-
-      ; If needed, include other descriptors here
-
-      ; @SAVE_SPACE: I was able to comment this out and things still work, but it's probably bad (saves 6 bytes)
-      ; The following 2 lines are also dropped since we are skipping "rjmp UNHANDLED_SETUP_REQUEST" (osamuaoki)
-      ; cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
-      ; breq        send_device_descriptor        ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that
-      ; NOTE: Originally, only this rjmp was skipped and things were still working, that's what
-      ; osamuaoki was able to use to optimize the check for (Device Descriptor), and simply fall through.
-      ; rjmp        UNHANDLED_SETUP_REQUEST       ; If the requested descriptor is not supported jump to UNHANDLED_SETUP_REQUEST
-
-send_device_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descriptor,
-                                                ; the higher portion is common for all descriptors
-      ldi         ZL, lo8(device_descriptor)    ; Load ZL with the least significant 8 bits of device_descriptor
-      rjmp        process_single_descriptor     ; jump to process_single_descriptor
-
-send_config_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descriptor,
-                                                ; the higher portion is common for all descriptors
-      ldi         ZL, lo8(config_descriptor)    ; Load ZL with the least significant 8 bits of config_descriptor
+      ldi         ZH, hi8(config_descriptor)    ; Load the high address part of config_descriptor into ZH
+      ldi         ZL, lo8(config_descriptor)    ; Load the low address part of config_descriptor into ZL
       ldi         r16, 34                       ; Load r16 with length of config_descriptor (34 bytes)
-      rjmp        process_descriptor            ; jump to process_descriptor
-
-send_hid_report_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descriptor,
-                                                ; the higher portion is common for all descriptors
-      ldi         ZL, lo8(hid_report_descriptor); Load ZL with the least significant 8 bits of hid_report_descriptor
-      ldi         r16, 21                       ; Load r16 with length of hid_report_descriptor (21 bytes)
-      rjmp        process_descriptor            ; jump to process_descriptor
-
-      ; If needed, include other descriptors here
-
-send_hid_descriptor:
-                                                ; We only load the lower portion (lo8) of the address of the descriptor,
-                                                ; the higher portion is common for all descriptors
-      ldi         ZL, lo8(hid_descriptor)       ; Load ZL with the least significant 8 bits of hid_descriptor
-
+      cpi         reg_wValueH, 0x02             ; Compare high byte of wValue with value 2;
+      breq        process_descriptor            ; If high byte of wValue is 0x02 (Configuration Descriptor), jump to handle that
+      adiw        r30, hid_descriptor - config_descriptor               ; Change Z to point to hid_descriptor
+      cpi         reg_wValueH, 0x21             ; Compare high byte of wValue with value 0x21 (HID Class HID Descriptor)
+      ; The following code will also be reused for the device descriptor - both of these descriptors
+      ; contain the size in the first byte, and getting the size from there saves one instruction.  This
+      ; trick cannot be applied to the Configuration Descriptor (which is actually a collection of
+      ; multiple descriptors) and the HID Report Descriptor (which has a completely different format).
 process_single_descriptor:
-
-      lpm         r16, Z                        ; Load r16 with the first byte of descriptor, which contains its length in bytes
+      lpm         r16, Z                        ; Load r16 with the first byte of descriptor, which contains its length in bytes.
+                                                ; This instruction does not change any flags in SREG, therefore it can be placed
+                                                ; between the compare and the corresponding conditional jump.
+      breq        process_descriptor            ; If the last compare result was equal, jump to return the descriptor data.
+      adiw        r30, device_descriptor - hid_descriptor               ; Change Z to point to device_descriptor
+      cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
+      breq        process_single_descriptor     ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that;
+                                                ; reuse the code for hid_descriptor above.
+      adiw        r30, hid_report_descriptor - device_descriptor        ; Change Z to point to hid_report_descriptor
+      ldi         r16, 21                       ; Load r16 with length of hid_report_descriptor (21 bytes)
+      cpi         reg_wValueH, 0x22             ; Compare high byte of wValue with value 0x22;
+      brne        UNHANDLED_SETUP_REQUEST       ; If high byte of wValue is NOT 0x22 (HID Class HID Report Descriptor), reject the setup request;
+                                                ; otherwise fallthrough to process_descriptor.
 
 process_descriptor:
 
