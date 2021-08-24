@@ -677,9 +677,8 @@ HOST_TO_DEVICE:
                                                 ; fallthrough to HANDLE_USB_CLAS_INTERFACE if equal
 HANDLE_USB_CLAS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
-      breq        SET_HID_REPORT                ; jump to SET_HID_REPORT
-      rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
-
+      brne        UNHANDLED_SETUP_REQUEST_1     ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
+      ; fallthrough to SET_HID_REPORT
 
 SET_HID_REPORT:
 
