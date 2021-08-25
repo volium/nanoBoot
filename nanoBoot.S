@@ -694,15 +694,13 @@ SET_HID_REPORT:
       rcall       wait_RXOUTI                   ; This function loads r17 with value of UEINTX
 
 load_page_address:
-      ; We store the page address in r15:r14 and not in r31:r30 because we need
-      ; to keep track of the page when we call write_page_to_flash
-      ldd         r14, Y+oUEDATX                ; Load r14 with LSB of page address
-      ldd         r15, Y+oUEDATX                ; Load r15 with MSB of page address
+      ldd         r30, Y+oUEDATX                ; Load r30 with LSB of page address
+      ldd         r31, Y+oUEDATX                ; Load r31 with MSB of page address
 
 check_page_address:
       ldi         r26, 0xFF                     ; Load value 0xFF to r26
-      cp          r26, r14                      ; Compare low byte of page address against 0xFF
-      cpc         r26, r15                      ; Compare high byte of page address against 0xFF
+      cp          r26, r30                      ; Compare low byte of page address against 0xFF
+      cpc         r26, r31                      ; Compare high byte of page address against 0xFF
       brne        erase_page                    ; if r15:r14 != 0xFFFF jump to erase_page
 
 quit_bootloader:
@@ -711,9 +709,6 @@ quit_bootloader:
       rjmp        finish_hid_request            ; jump to finish_hid_request
 
 erase_page:
-
-      ; Set page address in Z-Register
-      movw        r30, r14                      ; Copy r15:r14 to r31:r30 (Z-Register)
 
       ldi         r17, (_BV(PGERS)|_BV(SPMEN))  ; load r17 with the value needed to erase the currently specified page
       rcall       do_SPM                        ; execute page erase (this function requires r17 to be loaded first with the right value for SPMCSR)
@@ -749,13 +744,15 @@ write_page_buffer:
       rcall       do_SPM                        ; execute page buffer write (this function requires r17 to be loaded first with the right value for SPMCSR)
 
 increment_byte_address:
-      adiw        r30, 2                        ; Increment Z-Register (the current byte address) by 2
+      subi        r30, -2                       ; Increment the current address by 2.
+                                                ; Only the low byte needs to be incremented, because the block start address must be page aligned,
+                                                ; therefore any carry to the high byte may happen only past the end of the block.
 
       dec         r16                           ; decrement r16 (number of words per page)
       brne        check_endpoint_for_more_data  ; loop while r16 is not equal to SPM_PAGESIZE (128)
 
-      ; Set page address in Z-Register
-      movw        r30, r14                      ; Copy r15:r14 (the original page address) back to r31:r30 (Z-Register)
+      ; Restore the page address in Z-Register
+      subi        r30, SPM_PAGESIZE             ; Move the address back to the start of page (again only the low byte needs to be changed).
 
 write_page_to_flash:
       ldi         r17, (_BV(PGWRT)|_BV(SPMEN))  ; load r17 with the value needed to commit the current page buffer to the flash
