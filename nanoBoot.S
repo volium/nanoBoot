@@ -906,12 +906,14 @@ DEVICE_TO_HOST:
       ; If we get here, we know bit 7 of bmRequestType is set, meaning it is a DEVICE_TO_HOST (IN) request,
       ; now we need to filter out any unhandled requests
 
-      cbr        reg_bmRequestType, 0x01        ; We mask reg_bmRequestType with value 0x01, bit 0 of bmRequestType is set if the recipient of the request is the interface,
-                                                ; and we need to handle that case since the host will query the interface to retrieve the hid_descriptor, obviously we also
-                                                ; need to handle the recipient being the device (bit 0 = 0) since all other descriptors are targeted to it
+      ; SIZE OPTIMIZATION: The only bmRequestType values that we care about are:
+      ;  - 0x80 - IN Type Request, USB Standard Request, Recipient is the device
+      ;  - 0x81 - IN Type Request, USB Standard Request, Recipient is the interface
+      ; At this step it is known that bmRequestType >= 0x80, therefore checking for bmRequestType < 0x82
+      ; is enough to detect whether bmRequestType has one of the above values.
 
-      cpi         reg_bmRequestType, 0x80       ; Compare r18 (bmRequestType) with value 0x80 (IN Type Resquest, USB Standard Request, Recipient is the device/interface)
-      brne        UNHANDLED_DEVICE_TO_HOST      ; If bmRequestType is not 0x80, we know it's not a GET_DESCRIPTOR request, so jump to UNHANDLED_DEVICE_TO_HOST
+      cpi         reg_bmRequestType, 0x82       ; Check whether bmRequestType is less than 0x82 (then it must be either 0x80 or 0x81)
+      brcc        UNHANDLED_DEVICE_TO_HOST      ; If bmRequestType >= 0x82, this request type is not handled here (it's not a GET_DESCRIPTOR request)
 
       cpi         reg_bRequest, 0x06            ; Compare bRequest with value 0x06 (REQ_GetDescriptor)
       brne        UNHANDLED_DEVICE_TO_HOST      ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
