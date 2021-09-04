@@ -674,8 +674,7 @@ HOST_TO_DEVICE:
       cpi         reg_bmRequestType, 0x00       ; Compare r18 (bmRequestType) with value 0x00 (OUT Type Resquest, USB Standard Request, Recipient is the device)
       breq        HANDLE_USB_STANDARD_DEVICE    ; If bmRequestType is 0x00, we know it's either a SET_ADDRESS or SET_CONFIGURATION request, so jump to HANDLE_USB_STANDARD_DEVICE
 
-      andi        reg_bmRequestType, (0x60 | 0x1F)          ; Mask reg_bmRequestType with the bits that define request type and recipient (CONTROL_REQTYPE_TYPE | CONTROL_REQTYPE_RECIPIENT)
-      cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
+      cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare bmRequestType with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
       brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
                                                 ; fallthrough to HANDLE_USB_CLAS_INTERFACE if equal
 HANDLE_USB_CLAS_INTERFACE:
