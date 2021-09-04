@@ -419,13 +419,12 @@ run_bootloader:
       ; USBCON &= ~(1 << VBUSTE);
       ; USBCON &= ~(1 << USBE);
 
-      ; IMPORTANT NOTE: To reduce code size, we are going to reseve r16 to handle all writes to the USB Controller Register (USBCON)
-      ; this way we don't have to keep loading the value to it (ldd)
-      ldd         r16, Y+oUSBCON                ; Load r16 with the value in the USB Configuration Register (USBCON)
-
-      ; The right value of USBCON is already in r16, just clear VBUS Pad Enable Bit (OTGPADE),
-      ; VBUS Transition Interrupt Enable Bit (VBUSTE) and USB macro Enable Bit (USBE)
-      andi        r16, ~(_BV(OTGPADE)|_BV(VBUSTE)|_BV(USBE))
+      ; SIZE OPTIMIZATION: Instead of resetting just some specific bits, initialize the whole USBCON
+      ; register with its reset value (although even this could be omitted, this initialization is left
+      ; here in case the application tries to enter the bootloader in a slightly incorrect way).
+      ; As a further optimization, the USBCON register value is left in r16 for use in subsequent code
+      ; which modifies various bits of that register.
+      ldi         r16, _BV(FRZCLK)              ; Load r16 with the reset value for the USB Configuration Register (USBCON)
       std         Y+oUSBCON, r16                ; Store r16 to the USB Configuration Register (USBCON)
 
       ; Enable USB Regulator (USB_REG_On)
