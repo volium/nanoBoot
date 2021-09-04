@@ -524,9 +524,13 @@ main_loop:
 exit_bootloader:
       ; Detach device from USB Bus
       ; UDCON  |= (1 << DETACH);
-      ldd         r16, Y+oUDCON                 ; Load r16 with the value in the USB Device Configuration Register (UDCON)
-      ori         r16, _BV(DETACH)              ; Set the DETACH bit to enable the detachment
-      std         Y+oUDCON, r16                 ; Store r16 to the USB Device Configuration Register (UDCON)
+      ; SIZE OPTIMIZATION: All other UDCON bits except DETACH can be set to 0 at this time, and the value
+      ; of _BV(DETACH) is 0x01, therefore we can just store rONE into UDCON.
+      ; In theory this step could even be removed completely, because the watchdog reset should set the
+      ; DETACH bit anyway, but doing this here ensures that the host detects the USB device detach before
+      ; the application is started, which could avoid issues if the application does not add some delay
+      ; before enabling USB.
+      std         Y+oUDCON, rONE                ; Store _BV(DETACH) (== 0x01) to the USB Device Configuration Register (UDCON)
 
 ; =================================================================
 ; = Watchdog Timer initialization
