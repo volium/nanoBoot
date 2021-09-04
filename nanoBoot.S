@@ -228,13 +228,13 @@
       .global     reset_vector
 
 reset_vector:
-      cli                     ; Possibly unnecessary, maybe do something else?
+;     cli                     ; Dropped cli for size by Sergey
+                              ; ... but is this safe for soft-reset, Osamu?
       clr         rZERO       ; Initialize rZERO (YH = R29 register = zero)
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
-; NOTE: The 3 instructions above take 6 bytes total, eating into half (2 bytes)
-; of the "External Interrupt Request" vector.
+; NOTE: The 2 instructions above take 4 bytes total
 
 ;       .long       0       /* External Interrupt Request 0 */
 ;       .long       0       /* External Interrupt Request 1 */
@@ -246,15 +246,19 @@ reset_vector:
 ;       .long       0       /* Reserved */
 ;       .long       0       /* Pin Change Interrupt Request 0 */
 
-; We have a total 8.5 LWORDS (8.5*4=34 bytes; see NOTE above) to hide part of
+; We have a total 9 LWORDS (9*4=36 bytes; see NOTE above) to hide part of
 ; the USB descriptors. We could just hide the Device Descriptor there, but we
 ; would waste 18 bytes since the config_descriptor would have to be moved after
 ; the USB-related ISRs (USB General Interrupt Request and the USB Endpoint
 ; Interrupt Request); instead, we hide the WHOLE Configuration Descriptor,
-; including the config_descriptor, interface_descriptor, hid_descriptor and
+; including the length prefix, config_descriptor, interface_descriptor, hid_descriptor and
 ; endpoint_descriptor which is:
-; 9 + 9 + 9 + 7 = 34 bytes, and just leave the device_descriptor and
+; 1 + 9 + 9 + 9 + 7 = 35 bytes, and just leave the device_descriptor and
 ; hid_report_descriptor (18 + 21 = 39 bytes) defined after the USB-related ISRs.
+
+; 1 byte
+config_descriptor_prefix:
+   .byte       config_descriptor_end - config_descriptor + 0x80
 
 ; 9 bytes
 config_descriptor:
@@ -299,6 +303,8 @@ endpoint_descriptor:
    .byte       0x03           // bmAttributes         -- Transfer type = interrupt
    .word       64             // wMaxPacketSize       -- Maximum packet size supported in bytes (64)
    .byte       5              // bInterval            -- Polling interval (milliseconds)
+
+config_descriptor_end:
 
 ; USB-related ISRs are here!!!
 
@@ -354,9 +360,13 @@ device_descriptor:
    .word       0x2067         // idProduct            -- Product ID (HID Class Bootloader PID, from LUFA)
    .word       0x0001         // bcdDevice            -- Device Release Number
    .byte       0              // iManufacturer        -- Index of Manufacturer String Descriptor
-   .byte       0              // iProduct             -- Index of Product String Descriptor
+   .byte       1              // iProduct             -- Index of Product String Descriptor
    .byte       0              // iSerialNumber        -- Index of Serial Number String Descriptor
    .byte       1              // bNumConfigurations   -- Number of Possible Configuration
+
+; 1 byte
+hid_report_descriptor_prefix:
+   .byte       hid_report_descriptor_end - hid_report_descriptor + 0x80
 
 ; 21 bytes
 hid_report_descriptor:
@@ -370,7 +380,28 @@ hid_report_descriptor:
    .byte       0x96, 0x82, 0x00  //   Report Count (130) -> SPM_PAGESIZE (128 bytes) + 2
    .byte       0x91, 0x02        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
    .byte       0xC0              // End Collection
+hid_report_descriptor_end:
 
+; 4 bytes
+string_descriptor_0:
+   .byte       4              // bLength              -- Size of the Descriptor in Bytes (4 bytes)
+   .byte       3              // bDescriptorType      -- String Descriptor (0x03)
+   .word       0x0409         // wLANGID              -- Language code supported by the device (en-US)
+
+string_descriptor_1:
+   .byte       string_descriptor_1_end - string_descriptor_1    // bLength         -- Size of the Descriptor in Bytes (4 bytes)
+   .byte       3                                                // bDescriptorType -- String Descriptor (0x03)
+   .word       'n,'a,'n,'o,'B,'o,'o,'t
+string_descriptor_1_end:
+
+descriptor_table:
+      .byte       0x01, lo8(device_descriptor)
+      .byte       0x02, lo8(config_descriptor_prefix)
+      .byte       0x21, lo8(hid_descriptor)
+      .byte       0x22, lo8(hid_report_descriptor_prefix)
+      .byte       0xFE, lo8(string_descriptor_0)
+      .byte       0xFF, lo8(string_descriptor_1)
+descriptor_table_end:
 
 ; =================================================================
 ; ==  Entry point!
@@ -961,31 +992,24 @@ GET_DESCRIPTOR:
       ; Just get the descriptor address into
       ; [RAMPZ:]Z, and the length into r16
 
-      ldi         ZH, hi8(config_descriptor)    ; Load the high address part of config_descriptor into ZH
-      ldi         ZL, lo8(config_descriptor)    ; Load the low address part of config_descriptor into ZL
-      ldi         r16, 34                       ; Load r16 with length of config_descriptor (34 bytes)
-      cpi         reg_wValueH, 0x02             ; Compare high byte of wValue with value 2;
-      breq        process_descriptor            ; If high byte of wValue is 0x02 (Configuration Descriptor), jump to handle that
-      adiw        r30, hid_descriptor - config_descriptor               ; Change Z to point to hid_descriptor
-      cpi         reg_wValueH, 0x21             ; Compare high byte of wValue with value 0x21 (HID Class HID Descriptor)
-      ; The following code will also be reused for the device descriptor - both of these descriptors
-      ; contain the size in the first byte, and getting the size from there saves one instruction.  This
-      ; trick cannot be applied to the Configuration Descriptor (which is actually a collection of
-      ; multiple descriptors) and the HID Report Descriptor (which has a completely different format).
-process_single_descriptor:
-      lpm         r16, Z                        ; Load r16 with the first byte of descriptor, which contains its length in bytes.
-                                                ; This instruction does not change any flags in SREG, therefore it can be placed
-                                                ; between the compare and the corresponding conditional jump.
-      breq        process_descriptor            ; If the last compare result was equal, jump to return the descriptor data.
-      adiw        r30, device_descriptor - hid_descriptor               ; Change Z to point to device_descriptor
-      cpi         reg_wValueH, 0x01             ; Compare high byte of wValue with value 1;
-      breq        process_single_descriptor     ; If high byte of wValue is 0x01 (Device Descriptor), jump to handle that;
-                                                ; reuse the code for hid_descriptor above.
-      adiw        r30, hid_report_descriptor - device_descriptor        ; Change Z to point to hid_report_descriptor
-      ldi         r16, 21                       ; Load r16 with length of hid_report_descriptor (21 bytes)
-      cpi         reg_wValueH, 0x22             ; Compare high byte of wValue with value 0x22;
-      brne        UNHANDLED_SETUP_REQUEST       ; If high byte of wValue is NOT 0x22 (HID Class HID Report Descriptor), reject the setup request;
-                                                ; otherwise fallthrough to process_descriptor.
+      subi        reg_wValueL, 2                ; Shift the string descriptor index into the 0xFE...0xFF range
+      cpi         reg_wValueH, 0x03             ; Check whether the request is for a string descriptor (0x03)
+      breq        find_descriptor               ; If a string descriptor is requested, the search key is now prepared in reg_wValueL
+      mov         reg_wValueL, reg_wValueH      ; If any other descriptor is requested, use its code as the search key
+find_descriptor:
+      ldi         ZH, hi8(descriptor_table)     ; Load the high address part of descriptor_table into ZH (this part is assumed to be common for all descriptor data)
+      ldi         ZL, lo8(descriptor_table)     ; Load the low address part of descriptor_table into ZL
+find_descriptor_loop:
+      lpm         r0, Z+                        ; Load the search key from the descriptor table
+      lpm         r1, Z+                        ; Load the low part of the descriptor address from the descriptor table
+      cp          r0, reg_wValueL               ; Compare the search key for the current table item with the requested search key
+      brlo        find_descriptor_loop          ; If the requested key is less than the key for the current item in the table, continue the search
+      brne        UNHANDLED_SETUP_REQUEST       ; Otherwise, if the keys are not equal, the table does not have a matching entry, so reject the request with STALL
+      mov         ZL, r1                        ; Load the low part of the descriptor address into ZL (ZH is assumed to be the same)
+      lpm         r16, Z                        ; Load the descriptor length from the first byte of the descriptor
+      sbrc        r16, 7                        ; Skip the next instruction if bit 7 of the length is not set (the length is actually a part of the descriptor)
+      inc         ZL                            ; Otherwise the length is actually a prefix, and the descriptor data starts from the next byte, so adjust the address
+      cbr         r16, 0x80                     ; Clear bit 7 of the length which may have been used as a prefix flag
 
 process_descriptor:
 
