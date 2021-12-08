@@ -340,6 +340,9 @@ main:
 ; = Initialize constants
 ; =================================================================
       ; Set R3=rONE
+      ; There are 2 RESET cases: hard reset and soft reset.
+      ;   * For hard reset (power on or reset button pressed), there is no need to initialize rONE as 0
+      ;   * For soft reset from application, there is no guarantee
       clr         rONE                          ; Initialize rONE as 0 (application may have set this before RESET)
       inc         rONE                          ; Initialize rONE  (R3 register = one)
 
