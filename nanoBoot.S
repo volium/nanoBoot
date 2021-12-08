@@ -931,6 +931,9 @@ verifyMaxDescriptorLength:
 
 send_descriptor:
 
+      sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun on LED before exiting (non-promicro)
+      ;cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun on LED before exiting (promicro)
+
       ; Abort if RXSTPI is set
       ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX);
       sbrc        r17, RXSTPI                   ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is cleared
