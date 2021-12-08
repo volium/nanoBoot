@@ -567,6 +567,9 @@ exit_bootloader:
 ; = Watchdog Timer initialization
 ; =================================================================
 
+      cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting (non-promicro)
+      ;sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting (promicro)
+
       ; NOTE!! This part of the code assumes MCUSR has already been cleared
 
       ldi         YL, lo8(EIO_BASE)             ; Load YL with EIO_BASE (exit)
