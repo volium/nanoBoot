@@ -355,7 +355,7 @@ main:
       ldi         YL, lo8(EIO_BASE)             ; Load YL with EIO_BASE (initial)
       mov         r17,  rZERO                   ; Load r17 with zero to disable the Watchdog Timer completely
 
-      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded r17 (r16 used inside set_watchdog_timer)
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the watchdog timer with the values loaded r17 (r16 used inside set_watchdog_timer)
 
 ; check_reset_flags:
       sbrs        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction, go to run_bootloader)
