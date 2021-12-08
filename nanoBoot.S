@@ -355,6 +355,9 @@ run_application:                                ; We get here if the cause of th
       jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
 
 run_bootloader:
+      sbi         _SFR_IO_ADDR(LED_CONF), LED_BIT ; Set IO register as output for LED
+      ; No need to trun off LED initially (non-promicro) -- MCU port is initialized as 0
+      ;sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED initially (promicro)
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
 
 
