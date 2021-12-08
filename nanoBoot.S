@@ -48,6 +48,35 @@
 ; hfuse memory = 0xDF
 ; efuse memory = 0xC4
 
+; LED -- Configure this for the LED
+;
+; Teensy 2.0 compatible board (Adjust for other board)
+;   -- LED is ON with ATmega32u4 PIN D6 HIGH
+#define LED_BIT   6
+#define LED_CONF  DDRD
+#define LED_PORT  PORTD
+
+; Leonardo/Nano compatible board (Adjust for other board)
+;   -- LED is ON with ATmega32u4 PIN C7 HIGH
+; #define LED_BIT   7
+; #define LED_CONF  DDRC
+; #define LED_PORT  PORTC
+
+; Pro Micro compatible board (Adjust for other board)
+;   -- LED is ON with ATmega32u4 PIN D5 LOW
+; #define LED_BIT   5
+; #define LED_CONF  DDRD
+; #define LED_PORT  PORTD
+
+; Pro Micro compatible board (Adjust for other board)
+;   -- LED is ON with ATmega32u4 PIN B3 LOW
+; #define LED_BIT   3
+; #define LED_CONF  DDRB
+; #define LED_PORT  PORTB
+
+; Except for Pro Micro compatible board, initially LED is off.
+; This code assumes Teensy 2.0 or Leonardo/Nano compatible board
+
 ; SW assumptions:
 ; All Endpoints are being configured sequentially in ascending order,
 ; but, since we only use EP0, this is not that important
