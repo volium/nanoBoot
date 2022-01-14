@@ -1,6 +1,6 @@
 # nanoBoot
 
-[![Build Status](https://travis-ci.org/volium/nanoBoot.svg?branch=master)](https://travis-ci.org/volium/nanoBoot)
+[![Build](https://github.com/volium/nanoBoot/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/volium/nanoBoot/actions/workflows/build.yml)
 
 This repository contains the source code for the USB HID-based bootloader for ATmegaXXU4 family of devices.
 
