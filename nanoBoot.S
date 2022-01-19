@@ -346,7 +346,7 @@ main:
 
       mov         r17,  rZERO                   ; Load r17 with zero to disable the Watchdog Timer completely
 
-      rcall       set_watchdog_timer            ; Call the subroutine that sets the wathdog timer with the values loaded in r16 and r17
+      rcall       set_watchdog_timer            ; Call the subroutine that sets the watchdog timer with the values loaded in r16 and r17
 
 ; check_reset_flags:
       sbrs        rMCUSR, EXTRF                 ; Skip the next instruction if EXTRF is set (if External Reset Flag, skip next instruction, go to run_bootloader)
