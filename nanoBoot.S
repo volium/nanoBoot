@@ -48,34 +48,76 @@
 ; hfuse memory = 0xDF
 ; efuse memory = 0xC4
 
-; LED -- Configure this for the LED
-;
-; Teensy 2.0 compatible board (Adjust for other board)
+
+; ==========================================================
+; LED SUPPORT START
+
+; Turn LED on while bootloader is active
+; NOTE: This feature uses 6 bytes for active high and 8 bytes for active low
+
+; Uncomment the following line to enable LED feature
+; #define LED_ENABLED
+
+; LED Configuration
+; Uncomment or add a new LED configuration for your specific board
+
+; Adafruit's Atmega32u4 Breakout Board (Product ID: 296) - Now discontinued
+; https://www.adafruit.com/product/296
+;   -- LED is ON with ATmega32u4 PIN E6 HIGH
+; #define LED_BIT           6
+; #define LED_CONF          DDRE
+; #define LED_PORT          PORTE
+; #define LED_ACTIVE_LEVEL  1
+
+; Teensy 2.0 compatible board
 ;   -- LED is ON with ATmega32u4 PIN D6 HIGH
-#define LED_BIT   6
-#define LED_CONF  DDRD
-#define LED_PORT  PORTD
+; #define LED_BIT           6
+; #define LED_CONF          DDRD
+; #define LED_PORT          PORTD
+; #define LED_ACTIVE_LEVEL  1
 
-; Leonardo/Nano compatible board (Adjust for other board)
+; Leonardo/Nano compatible board
 ;   -- LED is ON with ATmega32u4 PIN C7 HIGH
-; #define LED_BIT   7
-; #define LED_CONF  DDRC
-; #define LED_PORT  PORTC
+; #define LED_BIT           7
+; #define LED_CONF          DDRC
+; #define LED_PORT          PORTC
+; #define LED_ACTIVE_LEVEL  1
 
-; Pro Micro compatible board (Adjust for other board)
+; Pro Micro compatible board
 ;   -- LED is ON with ATmega32u4 PIN D5 LOW
-; #define LED_BIT   5
-; #define LED_CONF  DDRD
-; #define LED_PORT  PORTD
+; #define LED_BIT           5
+; #define LED_CONF          DDRD
+; #define LED_PORT          PORTD
+; #define LED_ACTIVE_LEVEL  0
 
-; Pro Micro compatible board (Adjust for other board)
+; Pro Micro compatible board
 ;   -- LED is ON with ATmega32u4 PIN B3 LOW
-; #define LED_BIT   3
-; #define LED_CONF  DDRB
-; #define LED_PORT  PORTB
+; #define LED_BIT           3
+; #define LED_CONF          DDRB
+; #define LED_PORT          PORTB
+; #define LED_ACTIVE_LEVEL  0
 
-; Except for Pro Micro compatible board, initially LED is off.
-; This code assumes Teensy 2.0 or Leonardo/Nano compatible board
+#if defined(LED_ENABLED)
+    #if !defined(LED_PORT) || !defined(LED_CONF) || !defined(LED_BIT) || !defined(LED_ACTIVE_LEVEL)
+        #error "If LED feature is enabled, the following need to be defined: LED_BIT, LED_CONF, LED_PORT, LED_ACTIVE_LEVEL"
+    #else
+         ; Set IO register as output for LED
+        #define ENABLE_LED_OUTPUT   sbi _SFR_IO_ADDR(LED_CONF), LED_BIT
+        #if LED_ACTIVE_LEVEL == 1
+            #define TURN_LED_ON     sbi _SFR_IO_ADDR(LED_PORT), LED_BIT
+            #define TURN_LED_OFF    cbi _SFR_IO_ADDR(LED_PORT), LED_BIT
+        #elif LED_ACTIVE_LEVEL == 0
+            #define TURN_LED_ON     cbi _SFR_IO_ADDR(LED_PORT), LED_BIT
+            #define TURN_LED_OFF    sbi _SFR_IO_ADDR(LED_PORT), LED_BIT
+        #else
+            #error "LED_ACTIVE_LEVEL needs to be either 1 (active high) or 0 (active low)"
+        #endif
+    #endif
+#endif
+
+; LED SUPPORT END
+; ==========================================================
+
 
 ; SW assumptions:
 ; The bootloader only "needs" endpoint 0; however, the HID spec requires any HID device to have an
@@ -161,9 +203,6 @@
 # error "BOOT_ADDRESS not defined!!"
 # define BOOT_ADDRESS 0
 #endif
-
-; For debugging purposes
-.equ     LED_PIN, 6
 
       .section    .vectors
 
@@ -357,10 +396,15 @@ run_application:                                ; We get here if the cause of th
       jmp         0                             ; Simply jump to 0x0000 (application) IMPORTANT NOTE!! This CANNOT be an 'rjmp'!!
 
 run_bootloader:
-      sbi         _SFR_IO_ADDR(LED_CONF), LED_BIT ; Set IO register as output for LED
-      ; No need to trun off LED initially (non-promicro) -- MCU port is initialized as 0
-      ;sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED initially (promicro)
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
+
+#if defined(LED_ENABLED)
+      ; Set IO register as output for LED
+      ENABLE_LED_OUTPUT
+      ; Turn LED on while bootloader is active
+      TURN_LED_ON
+#endif
+
 
 
 ; =================================================================
@@ -551,12 +595,14 @@ exit_bootloader:
       ori         r16, _BV(DETACH)              ; Set the DETACH bit to enable the detachment
       std         Y+oUDCON, r16                 ; Store r16 to the USB Device Configuration Register (UDCON)
 
+#if defined(LED_ENABLED)
+      ; Turn LED off before exiting
+      TURN_LED_OFF
+#endif
+
 ; =================================================================
 ; = Watchdog Timer initialization
 ; =================================================================
-
-      cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting (non-promicro)
-      ;sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun off LED before exiting (promicro)
 
       ; NOTE!! This part of the code assumes MCUSR has already been cleared
 
@@ -936,9 +982,6 @@ verifyMaxDescriptorLength:
       mov         reg_wLengthL, r16             ; Otherwise, copy the value in r16 (which is the smaller of the two) to reg_wLengthL, and use that to send the descriptor
 
 send_descriptor:
-
-      sbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun on LED before exiting (non-promicro)
-      ;cbi         _SFR_IO_ADDR(LED_PORT), LED_BIT ; Trun on LED before exiting (promicro)
 
       ; Abort if RXSTPI is set
       ldd         r17, Y+oUEINTX                ; Load r17 with the value in the USB Endpoint Interrupt Register (UEINTX);
