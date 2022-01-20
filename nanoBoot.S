@@ -78,8 +78,10 @@
 ; This code assumes Teensy 2.0 or Leonardo/Nano compatible board
 
 ; SW assumptions:
-; All Endpoints are being configured sequentially in ascending order,
-; but, since we only use EP0, this is not that important
+; The bootloader only "needs" endpoint 0; however, the HID spec requires any HID device to have an
+; Interrupt IN endpoint, and the host can decide to poll that endpoint even when the HID report
+; descriptor does not actually declare any input reports. Because of this, endpoints 0 and 1 are
+; configured (in reversed order). See commit bd1bd68e200485aa16445c9d22dd53bb205ee102 for details.
 
 
 ; Register Assignments:
@@ -700,8 +702,8 @@ HOST_TO_DEVICE:
       andi        reg_bmRequestType, (0x60 | 0x1F)          ; Mask reg_bmRequestType with the bits that define request type and recipient (CONTROL_REQTYPE_TYPE | CONTROL_REQTYPE_RECIPIENT)
       cpi         reg_bmRequestType, ((1 << 5) | (1 << 0))  ; Compare the masked value in r16 with the value that defines the request type and recipient we care about HID_SET_REPORT (REQTYPE_CLASS | REQREC_INTERFACE)
       brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
-                                                ; fallthrough to HANDLE_USB_CLAS_INTERFACE if equal
-HANDLE_USB_CLAS_INTERFACE:
+                                                ; fallthrough to HANDLE_USB_CLASS_INTERFACE if equal
+HANDLE_USB_CLASS_INTERFACE:
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x05 (HID_REQ_SetReport)
       breq        SET_HID_REPORT                ; jump to SET_HID_REPORT
       rjmp        UNHANDLED_SETUP_REQUEST       ; If reg_bmRequestType is not 0x00 or bRequest is not 0x05 or 0x09, we don't handle those cases, so jump to UNHANDLED_SETUP_REQUEST
@@ -717,6 +719,7 @@ HANDLE_USB_STANDARD_DEVICE:
                                                 ; fallthrough to SET_CONFIGURATION if equal
 SET_CONFIGURATION:
 
+      ; Optimization by "sigprof" that saves 2 bytes
       ; Dirty trick: We don't need to do anything for SET_CONFIGURATION except process_Host2Device,
       ; so we reuse the SET_ADDRESS code by making it reload the same value to UDADDR.
 
