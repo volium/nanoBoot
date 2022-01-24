@@ -53,7 +53,8 @@
 ; LED SUPPORT START
 
 ; Turn LED on while bootloader is active
-; NOTE: This feature uses 6 bytes for active high and 8 bytes for active low
+; NOTE: This feature uses 6 bytes for active high and 8 bytes for active low;
+; see "Enable LED" in the "run_bootloader" section for details.
 
 ; Uncomment the following line to enable LED feature
 ; #define LED_ENABLED
@@ -398,11 +399,16 @@ run_application:                                ; We get here if the cause of th
 run_bootloader:
       set                                       ; Initialize BootLoaderActive flag (T flag in SREG)
 
+; Enable LED
 #if defined(LED_ENABLED)
       ; Set IO register as output for LED
       ENABLE_LED_OUTPUT
-      ; Turn LED on while bootloader is active
-      TURN_LED_ON
+
+      ; If the LED is active low, we need to turn it off here (set LED_BIT) since the MCU IO port is
+      ; initialized as 0. This is a 2-byte penalty when using active low LED.
+      #if LED_ACTIVE_LEVEL == 0
+            TURN_LED_OFF
+      #endif
 #endif
 
 
@@ -764,6 +770,14 @@ HANDLE_USB_STANDARD_DEVICE:
       brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
                                                 ; fallthrough to SET_CONFIGURATION if equal
 SET_CONFIGURATION:
+
+#if defined(LED_ENABLED)
+      ; Turn LED on towards the end of enumeration (SET_CONFIGURATION is done after SET_ADDRESS)
+      ; TODO: If we ever have space, we could add a flag here to mark the fact that we have entered
+      ; this state, and turn the LED on at the end of the setup request. For now this is the best we
+      ; can do.
+      TURN_LED_ON
+#endif
 
       ; Optimization by "sigprof" that saves 2 bytes
       ; Dirty trick: We don't need to do anything for SET_CONFIGURATION except process_Host2Device,
