@@ -130,10 +130,19 @@
 ; Register Assignments:
 ; R0  =  temp
 ; R1  =  temp (traditionally, R1 stores constant 0, but we use it as temp because SPM uses R1:R0)
-; R2  =  0 (common constant, use instead of traditional R1)
+; R29 =  0 (common constant, use instead of traditional R1 since YH is always 0 within bootloader)
+; R2     unused
 ; R3  =  1 (common constant, number is used constantly in the code)
 ; R4  =  copy of MCUSR (MCU Status Register)
-; Y   =  USB_BASE
+; R4  ... R15  unused
+; R16          local variable
+; R17          local variable
+; R18 ... R25  local array variable used by USB
+; R26, R27     X index register
+; R28, R29      index register
+;     R28 = YL = lo8(USB_BASE) or lo8(EIO_BASE)
+;     R29 = YH = 0 = rZERO
+; R30, R31     Z index register
 
 ; Global Flags:
 ; T Flag (SREG) = BootLoaderActive
@@ -141,7 +150,7 @@
 
 ; Global Defines:
 
-#define rZERO              r2
+#define rZERO              r29
 #define rONE               r3
 #define rMCUSR             r4
 
@@ -220,7 +229,7 @@
 
 reset_vector:
       cli                     ; Possibly unnecessary, maybe do something else?
-      clr         rZERO       ; Initialize rZERO (R2 register = zero)
+      clr         rZERO       ; Initialize rZERO (YH = R29 register = zero)
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
@@ -392,7 +401,7 @@ main:
       ; Use Y+ for different purpose with YH=R29 to 0 for addressing extended io for any 64 bytes of YL specified section
       ; * WDT initialization routine:  YL=lo8(EIO_BASE)   --- (wdt_init) -- start and end of bootloader
       ; * USB communication routine:   YL=lo8(USB_BASE)   --- (usb_init) -- main part of bootloader
-      clr         YH                            ; 0 = hi8(USB_BASE) = hi8(EIO_BASE) = 0  common initialization
+      ;                                YH=rZERO = 0 : good for hi8(USB_BASE) = hi8(EIO_BASE) = 0
 
       ; We MUST disable the Watchdog Timer first, otherwise it will remain enabled and will keep resetting the system, so...
       ; Disable Watchdog Timer
