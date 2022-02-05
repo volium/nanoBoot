@@ -11,9 +11,9 @@ It's very likely that a few sections can be rewritten to make it even smaller, a
 The current version (commit #[d0ea26b](https://github.com/volium/nanoBoot/commit/d0ea26bb01e764340dc8ad7b473ad98cefdb52eb)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115).
 
 Binary size:
-* 478 bytes (as is)
-* 484 bytes (enable LED support with "LED_ACTIVE_LEVEL  1" (Leonardo, Nano, Teensy 2.0-type)
-* 486 bytes (enable LED support with "LED_ACTIVE_LEVEL  0" (Promicro-type)
+* 476 bytes (as is)
+* 482 bytes (enable LED support with "LED_ACTIVE_LEVEL  1" (Leonardo, Nano, Teensy 2.0-type)
+* 484 bytes (enable LED support with "LED_ACTIVE_LEVEL  0" (Promicro-type)
 
 Here, LED supports require user to uncomment few lines in `nanoBoot.S`.
 
