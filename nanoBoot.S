@@ -866,7 +866,6 @@ finish_hid_request:
       ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
       std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
-UNHANDLED_DEVICE_TO_HOST:
       rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
 
 
@@ -926,10 +925,10 @@ DEVICE_TO_HOST:
       ; is enough to detect whether bmRequestType has one of the above values.
 
       cpi         reg_bmRequestType, 0x82       ; Check whether bmRequestType is less than 0x82 (then it must be either 0x80 or 0x81)
-      brcc        UNHANDLED_DEVICE_TO_HOST      ; If bmRequestType >= 0x82, this request type is not handled here (it's not a GET_DESCRIPTOR request)
+      brcc        UNHANDLED_SETUP_REQUEST       ; If bmRequestType >= 0x82, this request type is not handled here (it's not a GET_DESCRIPTOR request)
 
       cpi         reg_bRequest, 0x06            ; Compare bRequest with value 0x06 (REQ_GetDescriptor)
-      brne        UNHANDLED_DEVICE_TO_HOST      ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
+      brne        UNHANDLED_SETUP_REQUEST       ; jump to UNHANDLED_SETUP_REQUEST if not equal
                                                 ; fallthrough to GET_DESCRIPTOR if equal
 GET_DESCRIPTOR:
 
