@@ -864,10 +864,7 @@ finish_hid_request:
 
       ; Clear Transmitter Ready Flag
       ldi         r17, ~(_BV(TXINI))            ; Clear the Transmitter Ready Interrupt Flag (TXINI) in r17
-      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      rjmp        UNHANDLED_SETUP_REQUEST       ; Go to UNHANDLED_SETUP_REQUEST
-
+      rjmp        clear_UEINTX_bit_and_reti     ; Store r17 to the USB Endpoint Interrupt Register (UEINTX), then return from interrupt
 
 HANDLE_USB_STANDARD_DEVICE:
 
@@ -1011,6 +1008,8 @@ wait_finish_transfer:
 
       ; Acknowledge the OUT packet
       ldi         r17, ~(_BV(RXOUTI))           ; Clear the Received OUT Data Interrupt Flag (RXOUTI) in r17
+
+clear_UEINTX_bit_and_reti:
       std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
 
 UNHANDLED_SETUP_REQUEST:
