@@ -228,9 +228,7 @@
       .global     reset_vector
 
 reset_vector:
-;     cli                     ; Dropped cli for size by Sergey
-                              ; ... but is this safe for soft-reset, Osamu?
-      clr         rZERO       ; Initialize rZERO (YH = R29 register = zero)
+      cli                     ; Possibly unnecessary, maybe do something else?
       rjmp        main        ; Jump to main
 
 ; We are "hiding" the USB descriptors in the Interrupt Vector Table
@@ -421,6 +419,7 @@ main:
 ; =================================================================
 ; = Initialize constants
 ; =================================================================
+      clr         rZERO                         ; Initialize rZERO (YH = R29 register = zero)
       ; Set R3=rONE
       clr         rONE                          ; Initialize rONE as 0 (application may have set this before RESET)
       inc         rONE                          ; Initialize rONE  (R3 register = one)
