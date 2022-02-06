@@ -625,11 +625,6 @@ exit_bootloader:
       ; before enabling USB.
       std         Y+oUDCON, rONE                ; Store _BV(DETACH) (== 0x01) to the USB Device Configuration Register (UDCON)
 
-#if defined(LED_ENABLED)
-      ; Turn LED off before exiting
-      TURN_LED_OFF
-#endif
-
 ; =================================================================
 ; = Watchdog Timer initialization
 ; =================================================================
