@@ -389,7 +389,7 @@ string_descriptor_0:
 string_descriptor_1:
    .byte       string_descriptor_1_end - string_descriptor_1    // bLength         -- Size of the Descriptor in Bytes (4 bytes)
    .byte       3                                                // bDescriptorType -- String Descriptor (0x03)
-   .word       'n,'a,'n,'o,'B,'o,'o,'t
+   .word       'n,'a,'n,'o,'B,'t                                // Each character eats 2 bytes (save 4 bytes)
 string_descriptor_1_end:
 
 descriptor_table:
