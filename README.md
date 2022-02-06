@@ -8,14 +8,23 @@ The name *nanoBoot* comes from the fact that the compiled source fits in the sma
 
 It's very likely that a few sections can be rewritten to make it even smaller, and the ultimate goal is to support EEPROM programming as well, although that would require changes to the host code.
 
-The current version (commit #[d0ea26b](https://github.com/volium/nanoBoot/commit/d0ea26bb01e764340dc8ad7b473ad98cefdb52eb)) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115).
+The current version (2022-02-06) is supported as-is in the 'hid_bootloader_loader.py' script that ships with [LUFA-151115](https://github.com/abcminiuser/lufa/releases/tag/LUFA-151115) or even newer one.
 
 Binary size:
-* 476 bytes (as is)
-* 482 bytes (enable LED support with "LED_ACTIVE_LEVEL  1" (Leonardo, Nano, Teensy 2.0-type)
-* 484 bytes (enable LED support with "LED_ACTIVE_LEVEL  0" (Promicro-type)
+* 506 bytes (nanoBoot-generic.hex: No LED support)
+* 510 bytes (enable LED support with "LED_ACTIVE_LEVEL  1" (Leonardo, Nano, Teensy 2.0-type)
+* 512 bytes (enable LED support with "LED_ACTIVE_LEVEL  0" (Promicro-type)
 
-Here, LED supports require user to uncomment few lines in `nanoBoot.S`.
+Upon connecting to the host via USB, this sends following information: 
+```
+usb 4-2: new full-speed USB device number ** using xhci_hcd
+usb 4-2: New USB device found, idVendor=03eb, idProduct=2067, bcdDevice= 0.01
+usb 4-2: New USB device strings: Mfr=0, Product=1, SerialNumber=0
+usb 4-2: Product: nanoBt
+hid-generic 000*:03EB:2067.0026: hiddev*,hidraw*: USB HID v1.11 Device [nanoBt] on usb-0000:0*:00.*-2/input0
+```
+
+Helper scripts to build firmware with LED supports are provided as `mk-*`.
 
 ## HW assumptions:
 
