@@ -872,8 +872,35 @@ HANDLE_USB_STANDARD_DEVICE:
       cpi         reg_bRequest, 0x05            ; Compare bRequest with value 0x05 (REQ_SetAddress)
       breq        SET_ADDRESS                   ; jump to SET_ADDRESS
       cpi         reg_bRequest, 0x09            ; Compare bRequest with value 0x09 (REQ_SetConfiguration)
-      brne        UNHANDLED_SETUP_REQUEST_1     ; jump to UNHANDLED_SETUP_REQUEST through a thunk if not equal
-                                                ; fallthrough to SET_CONFIGURATION if equal
+      breq        SET_CONFIGURATION             ; jump to SET_CONFIGURATION  if equal
+                                                ; fallthrough to UNHANDLED_SETUP_REQUEST if not equal
+UNHANDLED_SETUP_REQUEST:
+
+      ; if (Endpoint_IsSETUPReceived())
+      ; (UEINTX & (1 << RXSTPI))
+      ldd         r16, Y+oUEINTX                 ; Load r16 with the value in the USB Endpoint Interrupt Register (UEINTX);
+      sbrs        r16, RXSTPI                    ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; received SETUP packet?
+      reti                                       ; Return if RXSTPI is not set, SETUP packet already handled
+
+      ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
+
+      ; Acknowledge the SETUP packet
+      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
+      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
+
+      ; STALL transaction
+
+      ; // Endpoint_StallTransaction();
+      ; UECONX |= (1 << STALLRQ);
+      ldd         r16, Y+oUECONX                ; Load r16 with the value in the USB Endpoint Configuration Register (UECONX)
+      ori         r16, _BV(STALLRQ)             ; Set the STALL Request Handshake Bit (STALLRQ) in r16
+      std         Y+oUECONX, r16                ; Store r16 to the USB Endpoint Configuration Register (UECONX)
+
+
+EP_ISR_END:
+
+      reti                                      ; Return from interrupt
+
 SET_CONFIGURATION:
 #if defined(LED_ENABLED)
       ; Turn LED on towards the end of enumeration (SET_CONFIGURATION is done after SET_ADDRESS)
@@ -1011,33 +1038,8 @@ wait_finish_transfer:
 
 clear_UEINTX_bit_and_reti:
       std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
+      rjmp        UNHANDLED_SETUP_REQUEST
 
-UNHANDLED_SETUP_REQUEST:
-
-      ; if (Endpoint_IsSETUPReceived())
-      ; (UEINTX & (1 << RXSTPI))
-      ldd         r16, Y+oUEINTX                 ; Load r16 with the value in the USB Endpoint Interrupt Register (UEINTX);
-      sbrs        r16, RXSTPI                    ; Skip the next instruction if the Received SETUP Interrupt Flag (RXSTPI) is set; received SETUP packet?
-      reti                                       ; Return if RXSTPI is not set, SETUP packet already handled
-
-      ; If we reach this part, the SETUP packet has not been handled, so we need to acknowledge it and request a stall
-
-      ; Acknowledge the SETUP packet
-      ldi         r17, ~(_BV(RXSTPI))           ; Clear the Received SETUP Interrupt Flag (RXSTPI) in r17
-      std         Y+oUEINTX, r17                ; Store r17 to the USB Endpoint Interrupt Register (UEINTX)
-
-      ; STALL transaction
-
-      ; // Endpoint_StallTransaction();
-      ; UECONX |= (1 << STALLRQ);
-      ldd         r16, Y+oUECONX                ; Load r16 with the value in the USB Endpoint Configuration Register (UECONX)
-      ori         r16, _BV(STALLRQ)             ; Set the STALL Request Handshake Bit (STALLRQ) in r16
-      std         Y+oUECONX, r16                ; Store r16 to the USB Endpoint Configuration Register (UECONX)
-
-
-EP_ISR_END:
-
-      reti                                      ; Return from interrupt
 
 
 ; =================================================================
