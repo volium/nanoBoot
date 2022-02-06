@@ -637,11 +637,11 @@ clean_list :
 
 
 # Create object files directory
-$(shell mkdir $(OBJDIR) 2>/NUL)
+$(shell mkdir -p $(OBJDIR))
 
 
 # Include the dependency files.
--include $(shell mkdir .dep 2>NUL) $(wildcard .dep/*)
+-include $(shell mkdir -p .dep) $(wildcard .dep/*)
 
 
 # Listing of phony targets.
