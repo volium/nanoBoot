@@ -1,0 +1,9 @@
+#!/bin/sh -ex
+# vim:se sw=2 ts=2 sts=2 et ai:
+# Script to build nanoBoot
+export PATH=${PATH}:.
+mk-generic
+mk-teensy
+mk-leonardo
+mk-promicro
+

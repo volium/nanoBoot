@@ -1,0 +1,24 @@
+#!/bin/sh -ex
+# vim:se sw=2 ts=2 sts=2 et ai:
+# Script to build nanoBoot
+
+# Pro Micro compatible board
+#   -- LED is ON with ATmega32u4 PIN D5 LOW
+# #define LED_BIT           5
+# #define LED_CONF          DDRD
+# #define LED_PORT          PORTD
+# #define LED_ACTIVE_LEVEL  0
+DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=5 -DLED_CONF=DDRD -DLED_PORT=PORTD -DLED_ACTIVE_LEVEL=0"
+
+# Pro Micro compatible board
+#   -- LED is ON with ATmega32u4 PIN B3 LOW
+# #define LED_BIT           3
+# #define LED_CONF          DDRB
+# #define LED_PORT          PORTB
+# #define LED_ACTIVE_LEVEL  0
+#DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=3 -DLED_CONF=DDRB -DLED_PORT=PORTB -DLED_ACTIVE_LEVEL=0"
+make clean
+make "$DEFS"
+mv -f nanoBoot.hex nanoBoot-promicro.hex
+
+
