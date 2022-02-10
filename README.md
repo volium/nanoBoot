@@ -31,3 +31,32 @@ The current version (commit #[d0ea26b](https://github.com/volium/nanoBoot/commit
     * efuse memory = 0xF4 (BOD=2.4V)
 
 The documentation is part of the source code itself, and even though some people may find it extremely verbose, I think that's better than lack of documentation; after all, assembly can be hard to read sometimes... ohhh yes, in case that was not expected, this is all written in pure GAS (GNU Assembly), compiled using the [Atmel AVR 8-bit Toolchain](http://www.atmel.com/tools/atmelavrtoolchainforwindows.aspx).
+
+## Toolchain installation
+
+ - ### MacOS
+    - Install [Homebrew](https://brew.sh/):
+
+        `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+    
+    - Install the avr-gcc toolchain via [osx-cross/avr](https://github.com/osx-cross/homebrew-avr):
+        
+        - Make sure **Xcode Command Line Tools** are installed:
+        
+            `xcode-select --install`
+        
+        - If **Xcode Command Line Tools** are installed, make sure they are up-to-date:
+            
+            `softwareupdate --all --install --force `
+        
+        - Install the latest version of avr-gcc:
+            
+            `brew tap osx-cross/avr`
+            
+            `brew install avr-gcc`
+        
+            **NOTE:** I personally experienced an issue with unidentified `___gmpz_X` symbols for `architecture arm64` during the installation on a new M1 MacBook Pro 14 inch; I was able to resolve this by completely removing `gmp` (`brew uninstall --force gmp`) and retrying the installation.
+
+        - Install avrdude to be able to flash the device:
+            
+            `brew install avrdude`
