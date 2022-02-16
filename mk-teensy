@@ -1,0 +1,50 @@
+#!/bin/sh -ex
+# vim:se sw=2 ts=2 sts=2 et ai:
+# Script to build nanoBoot
+
+# Adafruit's Atmega32u4 Breakout Board (Product ID: 296) - Now discontinued
+# https://www.adafruit.com/product/296
+#   -- LED is ON with ATmega32u4 PIN E6 HIGH
+# #define LED_BIT           6
+# #define LED_CONF          DDRE
+# #define LED_PORT          PORTE
+# #define LED_ACTIVE_LEVEL  1
+#DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=6 -DLED_CONF=DDRE -DLED_PORT=PORTE -DLED_ACTIVE_LEVEL=1"
+
+# Teensy 2.0 compatible board
+#   -- LED is ON with ATmega32u4 PIN D6 HIGH
+#define LED_BIT           6
+#define LED_CONF          DDRD
+#define LED_PORT          PORTD
+#define LED_ACTIVE_LEVEL  1
+DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=6 -DLED_CONF=DDRD -DLED_PORT=PORTD -DLED_ACTIVE_LEVEL=1"
+
+# Leonardo/Nano compatible board
+#   -- LED is ON with ATmega32u4 PIN C7 HIGH
+# #define LED_BIT           7
+# #define LED_CONF          DDRC
+# #define LED_PORT          PORTC
+# #define LED_ACTIVE_LEVEL  1
+#DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=7 -DLED_CONF=DDRC -DLED_PORT=PORTC -DLED_ACTIVE_LEVEL=1"
+
+# Pro Micro compatible board
+#   -- LED is ON with ATmega32u4 PIN D5 LOW
+# #define LED_BIT           5
+# #define LED_CONF          DDRD
+# #define LED_PORT          PORTD
+# #define LED_ACTIVE_LEVEL  0
+#DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=5 -DLED_CONF=DDRD -DLED_PORT=PORTD -DLED_ACTIVE_LEVEL=0"
+
+# Pro Micro compatible board
+#   -- LED is ON with ATmega32u4 PIN B3 LOW
+# #define LED_BIT           3
+# #define LED_CONF          DDRB
+# #define LED_PORT          PORTB
+# #define LED_ACTIVE_LEVEL  0
+#DEFS="LEDDEFS=-DLED_ENABLED -DLED_BIT=3 -DLED_CONF=DDRB -DLED_PORT=PORTB -DLED_ACTIVE_LEVEL=0"
+
+make clean
+make "$DEFS"
+mv -f nanoBoot.hex nanoBoot-teensy.hex
+
+
